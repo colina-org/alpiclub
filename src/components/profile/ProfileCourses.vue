@@ -340,9 +340,24 @@ const isMutating = () =>
               Ver certificado ↗
             </a>
           </div>
+
+          <!-- Mobile only: ações abaixo do conteúdo -->
+          <div
+            v-if="canEdit"
+            class="flex sm:hidden items-center justify-end gap-2 mt-3 pt-3 border-t border-line"
+          >
+            <button class="btn-ghost text-xs" @click="openEdit(course)">Editar</button>
+            <button
+              class="btn-ghost text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
+              @click="handleDelete(course)"
+            >
+              Excluir
+            </button>
+          </div>
         </div>
 
-        <div v-if="canEdit" class="flex items-center gap-1 flex-shrink-0">
+        <!-- Desktop only: ações à direita -->
+        <div v-if="canEdit" class="hidden sm:flex items-center gap-1 flex-shrink-0">
           <button class="btn-ghost text-xs" @click="openEdit(course)">Editar</button>
           <button
             class="btn-ghost text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
