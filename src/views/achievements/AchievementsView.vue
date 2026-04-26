@@ -462,11 +462,26 @@ const currentFormImage = computed(
               <span>·</span>
               <span>{{ timeAgo(a.granted_at) }}</span>
             </div>
+
+            <!-- Mobile only: ações abaixo do conteúdo, com separador sutil -->
+            <div
+              v-if="canEditOrDelete(a.granted_by_id)"
+              class="flex sm:hidden items-center justify-end gap-2 mt-3 pt-3 border-t border-line"
+            >
+              <button class="btn-ghost text-xs" @click="openEdit(a)">Editar</button>
+              <button
+                class="btn-ghost text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
+                @click="handleDelete(a.id)"
+              >
+                Excluir
+              </button>
+            </div>
           </div>
 
+          <!-- Desktop only: ações à direita do conteúdo -->
           <div
             v-if="canEditOrDelete(a.granted_by_id)"
-            class="flex items-center gap-1 flex-shrink-0"
+            class="hidden sm:flex items-center gap-1 flex-shrink-0"
           >
             <button class="btn-ghost text-xs" @click="openEdit(a)">Editar</button>
             <button
