@@ -1,0 +1,98 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-surface text-ink font-sans;
+  }
+
+  :focus-visible {
+    @apply outline-none ring-2 ring-brand-600 ring-offset-2 ring-offset-surface;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .btn-primary {
+    @apply btn bg-brand-600 text-white hover:bg-brand-300 hover:text-ink active:bg-brand-300 active:text-ink;
+  }
+
+  .btn-secondary {
+    @apply btn bg-panel text-ink border border-line hover:bg-surface;
+  }
+
+  .btn-ghost {
+    @apply btn text-muted hover:text-ink hover:bg-surface;
+  }
+
+  .input {
+    @apply block w-full rounded-xl border border-line bg-panel px-3.5 py-2.5 text-sm text-ink placeholder:text-muted shadow-sm focus:border-brand-600 focus:ring-brand-600;
+  }
+
+  .card {
+    @apply rounded-2xl bg-panel border border-line shadow-soft;
+  }
+}
+
+/* ---------------------------------------------------------------------
+   Transições reutilizáveis (Vue Transition / TransitionGroup)
+   --------------------------------------------------------------------- */
+
+/* Fade + leve subida — bom para troca de página inteira */
+.page-enter-active,
+.page-leave-active {
+  transition: opacity 200ms ease, transform 200ms ease;
+}
+.page-enter-from {
+  opacity: 0;
+  transform: translateY(6px);
+}
+.page-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+/* Fade puro — para itens em lista (TransitionGroup) */
+.list-enter-active {
+  transition: opacity 220ms ease, transform 220ms ease;
+}
+.list-leave-active {
+  transition: opacity 150ms ease, transform 150ms ease;
+  position: absolute;
+}
+.list-enter-from {
+  opacity: 0;
+  transform: translateY(8px);
+}
+.list-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+.list-move {
+  transition: transform 250ms ease;
+}
+
+/* Slide-down — bom para forms inline expansíveis */
+.expand-enter-active,
+.expand-leave-active {
+  transition: opacity 180ms ease, transform 180ms ease, max-height 220ms ease;
+  overflow: hidden;
+  max-height: 1500px;
+}
+.expand-enter-from,
+.expand-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+  max-height: 0;
+}

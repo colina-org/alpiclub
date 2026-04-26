@@ -1,0 +1,100 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
+import { supabase } from '@/lib/supabase'
+import type {
+  AchievementCategory,
+  AchievementWithPeople,
+} from '@/types/database'
+
+const PROFILE_FIELDS = 'id, full_name, email, avatar_url, position'
+
+export interface AchievementsQueryOptions {
+  limit?: number
+}
+
+export function useAchievements(options: AchievementsQueryOptions = {}) {
+  const { limit } = options
+  return useQuery({
+    queryKey: ['achievements', { limit: limit ?? null }],
+    queryFn: async (): Promise<AchievementWithPeople[]> => {
+      let query = supabase
+        .from('achievements')
+        .select(
+          `*, recipient:profiles!achievements_recipient_id_fkey(${PROFILE_FIELDS}),
+              granted_by:profiles!achievements_granted_by_id_fkey(${PROFILE_FIELDS})`,
+        )
+        .order('granted_at', { ascending: false })
+
+      if (limit) query = query.limit(limit)
+
+      const { data, error } = await query
+      if (error) throw error
+      return (data ?? []) as AchievementWithPeople[]
+    },
+  })
+}
+
+import type { Achievement } from '@/types/database'
+
+// Achievements where this profile is the recipient. Used by PDI resource picker.
+export function useAchievementsByRecipient(
+  recipientId: import('vue').MaybeRefOrGetter<string | undefined>,
+) {
+  return useQuery({
+    queryKey: ['achievements-by-recipient', recipientId],
+    enabled: () => !!(typeof recipientId === 'function' ? recipientId() : (recipientId as { value?: string })?.value ?? recipientId),
+    queryFn: async (): Promise<Achievement[]> => {
+      const id =
+        typeof recipientId === 'function'
+          ? recipientId()
+          : (recipientId as { value?: string })?.value ?? (recipientId as string)
+      const { data, error } = await supabase
+        .from('achievements')
+        .select('*')
+        .eq('recipient_id', id!)
+        .order('granted_at', { ascending: false })
+
+      if (error) throw error
+      return (data ?? []) as Achievement[]
+    },
+  })
+}
+
+export interface AchievementInput {
+  recipient_id: string
+  granted_by_id: string
+  category: AchievementCategory
+  title: string
+  message?: string | null
+}
+
+export function useCreateAchievement() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: AchievementInput) => {
+      const { data, error } = await supabase
+        .from('achievements')
+        .insert(input)
+        .select()
+        .single()
+
+      if (error) throw error
+      return data
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['achievements'] })
+    },
+  })
+}
+
+export function useDeleteAchievement() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('achievements').delete().eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['achievements'] })
+    },
+  })
+}
