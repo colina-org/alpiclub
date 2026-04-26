@@ -22,9 +22,9 @@ const ledPeople = computed(() => {
 
   const merged = new Map<string, (typeof all)[number]>()
 
-  // Sócio → Heads (excluindo Heads que também são sócios da mesma agência —
-  // sócios são pares, não se gerenciam).
-  if (myAgenciesAsPartner.length > 0) {
+  // Sócio (que NÃO é head) → Heads. Sócio+head atua como head de equipe.
+  // Também exclui sócios da mesma agência (são pares).
+  if (myAgenciesAsPartner.length > 0 && !me.is_head) {
     for (const p of all) {
       if (
         p.id !== me.id &&

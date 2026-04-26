@@ -50,7 +50,8 @@ const canViewPdi = computed(() => {
     targetAgencyId &&
     myPartnerships.includes(targetAgencyId) &&
     target.is_head &&
-    !targetIsPartnerOfSameAgency // sócios são pares, não se gerenciam
+    !targetIsPartnerOfSameAgency && // sócios são pares, não se gerenciam
+    !me.is_head // sócio+head atua como head de equipe (sem oversight agency-level)
   ) return true
 
   const sameTeam = !!me.team_id && me.team_id === target.team_id
