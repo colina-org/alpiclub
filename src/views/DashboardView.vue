@@ -11,6 +11,18 @@ import { timeAgo, initials } from '@/lib/format'
 import DailyQuote from '@/components/DailyQuote.vue'
 
 const auth = useAuthStore()
+
+// Nome amigável: apelido > primeiro nome > prefixo do e-mail.
+const greetingName = computed(() => {
+  const nickname = auth.profile?.nickname?.trim()
+  if (nickname) return nickname
+  const fullName = auth.profile?.full_name?.trim()
+  if (fullName) return fullName.split(/\s+/)[0]
+  const email = auth.user?.email
+  if (email) return email.split('@')[0]
+  return 'colaborador'
+})
+
 const profilesQuery = useProfiles()
 const teamsQuery = useTeams()
 const recentAchievements = useAchievements({ limit: 5 })
@@ -87,7 +99,7 @@ const birthdaysThisWeek = computed(() => {
   <div class="space-y-6">
     <header>
       <h1 class="text-2xl font-semibold tracking-tight">
-        Olá, {{ auth.user?.email?.split('@')[0] ?? 'colaborador' }}.
+        Olá, {{ greetingName }}.
       </h1>
       <p class="mt-1 text-sm text-muted">
         Aqui está um resumo do que está acontecendo na Colina Tech.
