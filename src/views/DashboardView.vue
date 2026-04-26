@@ -106,7 +106,7 @@ const birthdaysThisWeek = computed(() => {
       </p>
     </header>
 
-    <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <section class="grid grid-cols-2 lg:grid-cols-4 gap-4">
       <div v-for="stat in stats" :key="stat.label" class="card p-5">
         <p class="text-xs font-medium text-muted uppercase tracking-wide">
           {{ stat.label }}
