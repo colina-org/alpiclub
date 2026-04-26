@@ -395,11 +395,12 @@ const currentFormImage = computed(
     <!-- Feed -->
     <TransitionGroup v-else name="list" tag="ul" class="space-y-3 relative">
       <li v-for="a in filtered" :key="a.id" class="card p-5">
-        <div class="flex items-start gap-4">
+        <article class="ach-grid">
+          <!-- Avatar -->
           <RouterLink
             v-if="a.recipient"
             :to="{ name: 'profile', params: { id: a.recipient.id } }"
-            class="flex-shrink-0"
+            class="ach-avatar"
           >
             <img
               v-if="a.recipient.avatar_url"
@@ -415,27 +416,29 @@ const currentFormImage = computed(
             </div>
           </RouterLink>
 
-          <div class="flex-1 min-w-0">
-            <div class="flex items-center gap-2 flex-wrap">
-              <RouterLink
-                v-if="a.recipient"
-                :to="{ name: 'profile', params: { id: a.recipient.id } }"
-                class="text-sm font-semibold hover:text-brand-700"
-              >
-                {{ a.recipient.full_name || a.recipient.email.split('@')[0] }}
-              </RouterLink>
-              <span
-                class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md"
-                :style="{
-                  backgroundColor: ACHIEVEMENT_CATEGORIES[a.category].color + '15',
-                  color: ACHIEVEMENT_CATEGORIES[a.category].color,
-                }"
-              >
-                {{ ACHIEVEMENT_CATEGORIES[a.category].label }}
-              </span>
-            </div>
+          <!-- Header: nome + categoria (linha topo) -->
+          <div class="ach-header flex items-center gap-2 flex-wrap">
+            <RouterLink
+              v-if="a.recipient"
+              :to="{ name: 'profile', params: { id: a.recipient.id } }"
+              class="text-sm font-semibold hover:text-brand-700"
+            >
+              {{ a.recipient.full_name || a.recipient.email.split('@')[0] }}
+            </RouterLink>
+            <span
+              class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md"
+              :style="{
+                backgroundColor: ACHIEVEMENT_CATEGORIES[a.category].color + '15',
+                color: ACHIEVEMENT_CATEGORIES[a.category].color,
+              }"
+            >
+              {{ ACHIEVEMENT_CATEGORIES[a.category].label }}
+            </span>
+          </div>
 
-            <p class="mt-1.5 text-base font-medium">{{ a.title }}</p>
+          <!-- Body: título, mensagem, imagem, granter, ações mobile -->
+          <div class="ach-body min-w-0">
+            <p class="text-base font-medium">{{ a.title }}</p>
 
             <p v-if="a.message" class="mt-1 text-sm text-ink/80 whitespace-pre-line">
               {{ a.message }}
@@ -445,7 +448,7 @@ const currentFormImage = computed(
               v-if="a.image_url"
               :src="a.image_url"
               :alt="a.title"
-              class="mt-3 rounded-xl max-h-96 w-auto border border-line"
+              class="mt-3 rounded-xl max-h-96 w-full sm:w-auto border border-line"
               loading="lazy"
             />
 
@@ -463,7 +466,7 @@ const currentFormImage = computed(
               <span>{{ timeAgo(a.granted_at) }}</span>
             </div>
 
-            <!-- Mobile only: ações abaixo do conteúdo, com separador sutil -->
+            <!-- Mobile only: ações abaixo do conteúdo -->
             <div
               v-if="canEditOrDelete(a.granted_by_id)"
               class="flex sm:hidden items-center justify-end gap-2 mt-3 pt-3 border-t border-line"
@@ -478,10 +481,10 @@ const currentFormImage = computed(
             </div>
           </div>
 
-          <!-- Desktop only: ações à direita do conteúdo -->
+          <!-- Desktop only: ações à direita -->
           <div
             v-if="canEditOrDelete(a.granted_by_id)"
-            class="hidden sm:flex items-center gap-1 flex-shrink-0"
+            class="ach-actions hidden sm:flex items-start gap-1"
           >
             <button class="btn-ghost text-xs" @click="openEdit(a)">Editar</button>
             <button
@@ -491,8 +494,33 @@ const currentFormImage = computed(
               Excluir
             </button>
           </div>
-        </div>
+        </article>
       </li>
     </TransitionGroup>
   </div>
 </template>
+
+<style scoped>
+.ach-grid {
+  display: grid;
+  gap: 0.5rem 0.75rem;
+  grid-template-columns: auto 1fr;
+  grid-template-areas:
+    'avatar header'
+    'body   body';
+}
+.ach-avatar { grid-area: avatar; }
+.ach-header { grid-area: header; min-width: 0; align-self: center; }
+.ach-body   { grid-area: body; }
+.ach-actions { grid-area: actions; }
+
+@media (min-width: 640px) {
+  .ach-grid {
+    gap: 0.25rem 1rem;
+    grid-template-columns: auto 1fr auto;
+    grid-template-areas:
+      'avatar header actions'
+      'avatar body   actions';
+  }
+}
+</style>
