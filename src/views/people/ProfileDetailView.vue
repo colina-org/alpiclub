@@ -44,10 +44,13 @@ const canViewPdi = computed(() => {
 
   const targetAgencyId = target.team?.agency?.id ?? null
   const myPartnerships = (me.partnerships ?? []).map((p) => p.agency_id)
+  const targetIsPartnerOfSameAgency = !!targetAgencyId &&
+    (target.partnerships ?? []).some((p) => p.agency_id === targetAgencyId)
   if (
     targetAgencyId &&
     myPartnerships.includes(targetAgencyId) &&
-    target.is_head
+    target.is_head &&
+    !targetIsPartnerOfSameAgency // sócios são pares, não se gerenciam
   ) return true
 
   const sameTeam = !!me.team_id && me.team_id === target.team_id

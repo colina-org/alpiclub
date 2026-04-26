@@ -22,7 +22,8 @@ const ledPeople = computed(() => {
 
   const merged = new Map<string, (typeof all)[number]>()
 
-  // Sócio → Heads
+  // Sócio → Heads (excluindo Heads que também são sócios da mesma agência —
+  // sócios são pares, não se gerenciam).
   if (myAgenciesAsPartner.length > 0) {
     for (const p of all) {
       if (
@@ -31,7 +32,10 @@ const ledPeople = computed(() => {
         p.team?.agency?.id &&
         myAgenciesAsPartner.includes(p.team.agency.id)
       ) {
-        merged.set(p.id, p)
+        const targetIsPartnerOfSameAgency = (p.partnerships ?? []).some(
+          (tp) => tp.agency_id === p.team!.agency!.id,
+        )
+        if (!targetIsPartnerOfSameAgency) merged.set(p.id, p)
       }
     }
   }
