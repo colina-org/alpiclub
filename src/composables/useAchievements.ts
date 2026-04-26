@@ -20,7 +20,8 @@ export function useAchievements(options: AchievementsQueryOptions = {}) {
         .from('achievements')
         .select(
           `*, recipient:profiles!achievements_recipient_id_fkey(${PROFILE_FIELDS}),
-              granted_by:profiles!achievements_granted_by_id_fkey(${PROFILE_FIELDS})`,
+              granted_by:profiles!achievements_granted_by_id_fkey(${PROFILE_FIELDS}),
+              likes:achievement_likes(profile_id)`,
         )
         .order('granted_at', { ascending: false })
 
@@ -106,6 +107,37 @@ export function useUpdateAchievement() {
 
       if (error) throw error
       return data
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['achievements'] })
+    },
+  })
+}
+
+export function useToggleAchievementLike() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: {
+      achievementId: string
+      profileId: string
+      isLiked: boolean
+    }) => {
+      if (input.isLiked) {
+        const { error } = await supabase
+          .from('achievement_likes')
+          .delete()
+          .eq('achievement_id', input.achievementId)
+          .eq('profile_id', input.profileId)
+        if (error) throw error
+      } else {
+        const { error } = await supabase
+          .from('achievement_likes')
+          .insert({
+            achievement_id: input.achievementId,
+            profile_id: input.profileId,
+          })
+        if (error) throw error
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['achievements'] })

@@ -6,7 +6,9 @@ import {
   useCreateAchievement,
   useUpdateAchievement,
   useDeleteAchievement,
+  useToggleAchievementLike,
 } from '@/composables/useAchievements'
+import { Heart } from 'lucide-vue-next'
 import { useProfiles } from '@/composables/useProfiles'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
@@ -25,6 +27,29 @@ const profilesQuery = useProfiles()
 const createAchievement = useCreateAchievement()
 const updateAchievement = useUpdateAchievement()
 const deleteAchievement = useDeleteAchievement()
+const toggleLike = useToggleAchievementLike()
+
+function likeCount(a: AchievementWithPeople): number {
+  return a.likes?.length ?? 0
+}
+
+function isLikedByMe(a: AchievementWithPeople): boolean {
+  if (!auth.user?.id) return false
+  return (a.likes ?? []).some((l) => l.profile_id === auth.user!.id)
+}
+
+async function handleToggleLike(a: AchievementWithPeople) {
+  if (!auth.user?.id) return
+  try {
+    await toggleLike.mutateAsync({
+      achievementId: a.id,
+      profileId: auth.user.id,
+      isLiked: isLikedByMe(a),
+    })
+  } catch (err) {
+    ui.pushToast(err instanceof Error ? err.message : 'Erro ao curtir.', 'error')
+  }
+}
 
 const categoryEntries = Object.entries(ACHIEVEMENT_CATEGORIES) as [
   AchievementCategory,
@@ -464,6 +489,29 @@ const currentFormImage = computed(
               <span v-else class="italic">usuário removido</span>
               <span>·</span>
               <span>{{ timeAgo(a.granted_at) }}</span>
+            </div>
+
+            <!-- Curtir -->
+            <div class="mt-3 flex items-center gap-1">
+              <button
+                type="button"
+                class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-sm transition-colors"
+                :class="
+                  isLikedByMe(a)
+                    ? 'text-red-500 hover:bg-red-50'
+                    : 'text-muted hover:text-red-500 hover:bg-red-50'
+                "
+                :disabled="toggleLike.isPending.value"
+                :aria-label="isLikedByMe(a) ? 'Descurtir' : 'Curtir'"
+                @click="handleToggleLike(a)"
+              >
+                <Heart
+                  class="w-4 h-4 transition-transform"
+                  :class="isLikedByMe(a) ? 'fill-current scale-110' : ''"
+                  :stroke-width="2"
+                />
+                <span class="font-medium">{{ likeCount(a) || '' }}</span>
+              </button>
             </div>
 
             <!-- Mobile only: ações abaixo do conteúdo -->

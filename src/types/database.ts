@@ -102,9 +102,17 @@ export interface Achievement {
 
 type ProfileMini = Pick<Profile, 'id' | 'full_name' | 'email' | 'avatar_url' | 'position'>
 
+export interface AchievementLike {
+  id: string
+  achievement_id: string
+  profile_id: string
+  created_at: string
+}
+
 export interface AchievementWithPeople extends Achievement {
   recipient: ProfileMini | null
   granted_by: ProfileMini | null
+  likes?: Pick<AchievementLike, 'profile_id'>[]
 }
 
 export const ACHIEVEMENT_CATEGORIES: Record<
