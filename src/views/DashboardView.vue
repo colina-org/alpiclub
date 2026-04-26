@@ -12,12 +12,12 @@ import DailyQuote from '@/components/DailyQuote.vue'
 
 const auth = useAuthStore()
 
-// Nome amigável: apelido > primeiro nome > prefixo do e-mail.
+// Nome amigável: primeiro nome > apelido > prefixo do e-mail.
 const greetingName = computed(() => {
-  const nickname = auth.profile?.nickname?.trim()
-  if (nickname) return nickname
   const fullName = auth.profile?.full_name?.trim()
   if (fullName) return fullName.split(/\s+/)[0]
+  const nickname = auth.profile?.nickname?.trim()
+  if (nickname) return nickname
   const email = auth.user?.email
   if (email) return email.split('@')[0]
   return 'colaborador'
