@@ -94,6 +94,7 @@ export interface Achievement {
   category: AchievementCategory
   title: string
   message: string | null
+  image_url: string | null
   granted_at: string
   created_at: string
   updated_at: string

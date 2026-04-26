@@ -4,12 +4,18 @@ import { RouterLink } from 'vue-router'
 import {
   useAchievements,
   useCreateAchievement,
+  useUpdateAchievement,
   useDeleteAchievement,
 } from '@/composables/useAchievements'
 import { useProfiles } from '@/composables/useProfiles'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
-import { ACHIEVEMENT_CATEGORIES, type AchievementCategory } from '@/types/database'
+import { supabase } from '@/lib/supabase'
+import {
+  ACHIEVEMENT_CATEGORIES,
+  type AchievementCategory,
+  type AchievementWithPeople,
+} from '@/types/database'
 import { timeAgo, initials } from '@/lib/format'
 
 const auth = useAuthStore()
@@ -17,6 +23,7 @@ const ui = useUiStore()
 const achievementsQuery = useAchievements()
 const profilesQuery = useProfiles()
 const createAchievement = useCreateAchievement()
+const updateAchievement = useUpdateAchievement()
 const deleteAchievement = useDeleteAchievement()
 
 const categoryEntries = Object.entries(ACHIEVEMENT_CATEGORIES) as [
@@ -24,7 +31,6 @@ const categoryEntries = Object.entries(ACHIEVEMENT_CATEGORIES) as [
   { label: string; color: string },
 ][]
 
-// Filters
 const filterCategory = ref<AchievementCategory | 'all'>('all')
 const filterRecipient = ref<string>('all')
 
@@ -38,41 +44,107 @@ const filtered = computed(() => {
   })
 })
 
-// Other people (cannot grant to self)
 const otherProfiles = computed(() =>
   (profilesQuery.data.value ?? []).filter((p) => p.id !== auth.user?.id),
 )
 
-// Form state
-const formOpen = ref(false)
-const form = ref<{
+// ---------------------------------------------------------------------
+// Form (create + edit)
+// ---------------------------------------------------------------------
+type FormState = {
+  id: string | null
   recipient_id: string
   category: AchievementCategory
   title: string
   message: string
-}>({
+  // Imagem: nova selecionada, preview local, ou URL atual.
+  imageFile: File | null
+  imagePreview: string | null
+  currentImageUrl: string | null
+  removeImage: boolean
+}
+
+const emptyForm = (): FormState => ({
+  id: null,
   recipient_id: '',
   category: 'trabalho_em_equipe',
   title: '',
   message: '',
+  imageFile: null,
+  imagePreview: null,
+  currentImageUrl: null,
+  removeImage: false,
 })
 
-function resetForm() {
-  form.value = {
-    recipient_id: '',
-    category: 'trabalho_em_equipe',
-    title: '',
-    message: '',
-  }
+const formOpen = ref(false)
+const form = ref<FormState>(emptyForm())
+const uploadingImage = ref(false)
+
+function openCreate() {
+  form.value = emptyForm()
+  formOpen.value = true
 }
 
-function openForm() {
-  resetForm()
+function openEdit(a: AchievementWithPeople) {
+  form.value = {
+    id: a.id,
+    recipient_id: a.recipient_id,
+    category: a.category,
+    title: a.title,
+    message: a.message ?? '',
+    imageFile: null,
+    imagePreview: null,
+    currentImageUrl: a.image_url,
+    removeImage: false,
+  }
   formOpen.value = true
 }
 
 function closeForm() {
+  if (form.value.imagePreview) URL.revokeObjectURL(form.value.imagePreview)
   formOpen.value = false
+}
+
+const ALLOWED_IMG = ['image/jpeg', 'image/png', 'image/webp']
+const MAX_IMG_BYTES = 3 * 1024 * 1024
+
+function onImagePick(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  if (!ALLOWED_IMG.includes(file.type)) {
+    ui.pushToast('Use JPG, PNG ou WebP.', 'error')
+    return
+  }
+  if (file.size > MAX_IMG_BYTES) {
+    ui.pushToast('Imagem muito grande. Limite de 3 MB.', 'error')
+    return
+  }
+  if (form.value.imagePreview) URL.revokeObjectURL(form.value.imagePreview)
+  form.value.imageFile = file
+  form.value.imagePreview = URL.createObjectURL(file)
+  form.value.removeImage = false
+}
+
+function clearImage() {
+  if (form.value.imagePreview) URL.revokeObjectURL(form.value.imagePreview)
+  form.value.imageFile = null
+  form.value.imagePreview = null
+  // Se já tinha imagem antes, marca pra remover no save.
+  if (form.value.currentImageUrl) form.value.removeImage = true
+}
+
+async function uploadAchievementImage(file: File): Promise<string> {
+  if (!auth.user?.id) throw new Error('Não autenticado')
+  const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
+  const path = `${auth.user.id}/${Date.now()}.${ext}`
+  const { error } = await supabase.storage
+    .from('achievement_images')
+    .upload(path, file, { contentType: file.type, cacheControl: '3600' })
+  if (error) throw error
+  const { data } = supabase.storage.from('achievement_images').getPublicUrl(path)
+  return data.publicUrl
 }
 
 async function handleSubmit() {
@@ -80,18 +152,52 @@ async function handleSubmit() {
   if (!form.value.recipient_id || !form.value.title.trim()) return
 
   try {
-    await createAchievement.mutateAsync({
-      recipient_id: form.value.recipient_id,
-      granted_by_id: auth.user.id,
-      category: form.value.category,
-      title: form.value.title.trim(),
-      message: form.value.message.trim() || null,
-    })
-    ui.pushToast('Conquista registrada.', 'success')
+    // 1) Upload de imagem (se houver) — antes do save.
+    let imageUrl: string | null | undefined
+    if (form.value.imageFile) {
+      uploadingImage.value = true
+      try {
+        imageUrl = await uploadAchievementImage(form.value.imageFile)
+      } finally {
+        uploadingImage.value = false
+      }
+    } else if (form.value.removeImage) {
+      imageUrl = null
+    } else if (form.value.id) {
+      // Em edição sem mudar imagem, mantém a atual: não envio o campo.
+      imageUrl = undefined
+    } else {
+      imageUrl = null
+    }
+
+    // 2) Create or update.
+    if (form.value.id) {
+      await updateAchievement.mutateAsync({
+        id: form.value.id,
+        patch: {
+          recipient_id: form.value.recipient_id,
+          category: form.value.category,
+          title: form.value.title.trim(),
+          message: form.value.message.trim() || null,
+          ...(imageUrl !== undefined ? { image_url: imageUrl } : {}),
+        },
+      })
+      ui.pushToast('Conquista atualizada.', 'success')
+    } else {
+      await createAchievement.mutateAsync({
+        recipient_id: form.value.recipient_id,
+        granted_by_id: auth.user.id,
+        category: form.value.category,
+        title: form.value.title.trim(),
+        message: form.value.message.trim() || null,
+        image_url: imageUrl ?? null,
+      })
+      ui.pushToast('Conquista registrada.', 'success')
+    }
     closeForm()
   } catch (err) {
     ui.pushToast(
-      err instanceof Error ? err.message : 'Erro ao registrar conquista.',
+      err instanceof Error ? err.message : 'Erro ao salvar conquista.',
       'error',
     )
   }
@@ -110,10 +216,21 @@ async function handleDelete(id: string) {
   }
 }
 
-function canDelete(grantedById: string) {
+function canEditOrDelete(grantedById: string) {
   return auth.user?.id === grantedById
-  // (admins also can per RLS; we don't check viewer's role on the client to keep it simple — server enforces)
 }
+
+const isMutating = computed(
+  () =>
+    createAchievement.isPending.value ||
+    updateAchievement.isPending.value ||
+    uploadingImage.value,
+)
+
+// Imagem mostrada no form: preview novo > URL atual (em edição).
+const currentFormImage = computed(
+  () => form.value.imagePreview || (form.value.removeImage ? null : form.value.currentImageUrl),
+)
 </script>
 
 <template>
@@ -125,7 +242,7 @@ function canDelete(grantedById: string) {
           Reconhecimentos do time. Celebre alguém.
         </p>
       </div>
-      <button v-if="!formOpen" class="btn-primary" @click="openForm">
+      <button v-if="!formOpen" class="btn-primary" @click="openCreate">
         Nova conquista
       </button>
     </header>
@@ -134,7 +251,9 @@ function canDelete(grantedById: string) {
     <Transition name="expand">
       <section v-if="formOpen" class="card p-6 space-y-4">
       <div class="flex items-center justify-between">
-        <h2 class="text-base font-semibold">Reconhecer alguém</h2>
+        <h2 class="text-base font-semibold">
+          {{ form.id ? 'Editar conquista' : 'Reconhecer alguém' }}
+        </h2>
         <button class="btn-ghost text-sm" @click="closeForm">Cancelar</button>
       </div>
 
@@ -183,12 +302,52 @@ function canDelete(grantedById: string) {
           ></textarea>
         </div>
 
+        <div class="sm:col-span-2">
+          <label class="block text-sm font-medium mb-1.5">
+            Imagem <span class="text-muted font-normal">(opcional)</span>
+          </label>
+          <div v-if="currentFormImage" class="space-y-2">
+            <img
+              :src="currentFormImage"
+              alt="Pré-visualização"
+              class="rounded-xl max-h-64 w-auto border border-line"
+            />
+            <button
+              type="button"
+              class="btn-ghost text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
+              @click="clearImage"
+            >
+              Remover imagem
+            </button>
+          </div>
+          <label
+            v-else
+            class="flex items-center justify-center gap-2 border-2 border-dashed border-line rounded-xl py-8 px-4 cursor-pointer hover:border-brand-300 hover:bg-surface text-sm text-muted transition-colors"
+          >
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              class="hidden"
+              @change="onImagePick"
+            />
+            <span>📷 Clique para escolher uma imagem (JPG/PNG/WebP, máx. 3 MB)</span>
+          </label>
+        </div>
+
         <div class="sm:col-span-2 flex items-center justify-end gap-3">
-          <button type="button" class="btn-secondary" :disabled="createAchievement.isPending.value" @click="closeForm">
+          <button type="button" class="btn-secondary" :disabled="isMutating" @click="closeForm">
             Cancelar
           </button>
-          <button type="submit" class="btn-primary" :disabled="createAchievement.isPending.value">
-            {{ createAchievement.isPending.value ? 'Registrando...' : 'Registrar conquista' }}
+          <button type="submit" class="btn-primary" :disabled="isMutating">
+            {{
+              uploadingImage
+                ? 'Enviando imagem...'
+                : isMutating
+                  ? 'Salvando...'
+                  : form.id
+                    ? 'Salvar alterações'
+                    : 'Registrar conquista'
+            }}
           </button>
         </div>
       </form>
@@ -282,6 +441,14 @@ function canDelete(grantedById: string) {
               {{ a.message }}
             </p>
 
+            <img
+              v-if="a.image_url"
+              :src="a.image_url"
+              :alt="a.title"
+              class="mt-3 rounded-xl max-h-96 w-auto border border-line"
+              loading="lazy"
+            />
+
             <div class="mt-3 flex items-center gap-2 text-xs text-muted">
               <span>Reconhecido por</span>
               <RouterLink
@@ -297,13 +464,18 @@ function canDelete(grantedById: string) {
             </div>
           </div>
 
-          <button
-            v-if="canDelete(a.granted_by_id)"
-            class="btn-ghost text-xs text-red-600 hover:text-red-700 hover:bg-red-50 flex-shrink-0"
-            @click="handleDelete(a.id)"
+          <div
+            v-if="canEditOrDelete(a.granted_by_id)"
+            class="flex items-center gap-1 flex-shrink-0"
           >
-            Excluir
-          </button>
+            <button class="btn-ghost text-xs" @click="openEdit(a)">Editar</button>
+            <button
+              class="btn-ghost text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
+              @click="handleDelete(a.id)"
+            >
+              Excluir
+            </button>
+          </div>
         </div>
       </li>
     </TransitionGroup>

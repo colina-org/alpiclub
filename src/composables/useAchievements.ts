@@ -65,6 +65,7 @@ export interface AchievementInput {
   category: AchievementCategory
   title: string
   message?: string | null
+  image_url?: string | null
 }
 
 export function useCreateAchievement() {
@@ -74,6 +75,32 @@ export function useCreateAchievement() {
       const { data, error } = await supabase
         .from('achievements')
         .insert(input)
+        .select()
+        .single()
+
+      if (error) throw error
+      return data
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['achievements'] })
+    },
+  })
+}
+
+export function useUpdateAchievement() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      id,
+      patch,
+    }: {
+      id: string
+      patch: Partial<Omit<AchievementInput, 'granted_by_id'>>
+    }) => {
+      const { data, error } = await supabase
+        .from('achievements')
+        .update(patch)
+        .eq('id', id)
         .select()
         .single()
 
