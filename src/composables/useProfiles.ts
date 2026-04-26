@@ -3,6 +3,7 @@ import type { MaybeRefOrGetter } from 'vue'
 import { toValue } from 'vue'
 import { supabase } from '@/lib/supabase'
 import { withTimeout } from '@/lib/withTimeout'
+import { useAuthStore } from '@/stores/auth'
 import type { Profile, ProfileWithTeam } from '@/types/database'
 
 const PROFILE_WITH_TEAM_SELECT =
@@ -84,6 +85,7 @@ export type ProfileUpdate = Partial<
 
 export function useUpdateProfile() {
   const qc = useQueryClient()
+  const auth = useAuthStore()
   return useMutation({
     mutationFn: async ({ id, patch }: { id: string; patch: ProfileUpdate }): Promise<Profile> => {
       const op = supabase.from('profiles').update(patch).eq('id', id).select().single()
@@ -94,6 +96,9 @@ export function useUpdateProfile() {
     onSuccess: (_data, { id }) => {
       qc.invalidateQueries({ queryKey: ['profiles'] })
       qc.invalidateQueries({ queryKey: ['profile', id] })
+      // Se o perfil atualizado é o usuário logado, atualiza o cache do auth
+      // store para refletir mudanças em saudação, isAdmin, etc.
+      if (auth.user?.id === id) auth.fetchProfile()
     },
   })
 }
