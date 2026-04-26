@@ -563,8 +563,8 @@ async function handleChangePassword() {
               </select>
             </div>
 
-            <div class="sm:col-span-2 space-y-2">
-              <label class="inline-flex items-center gap-2 text-sm">
+            <div class="sm:col-span-2 space-y-3">
+              <label class="flex items-center gap-2 text-sm cursor-pointer">
                 <input
                   v-model="form.is_head"
                   type="checkbox"
@@ -573,7 +573,10 @@ async function handleChangePassword() {
                 />
                 <span>É o <strong>Head</strong> da equipe</span>
               </label>
-              <label class="inline-flex items-center gap-2 text-sm">
+              <label
+                class="flex items-center gap-2 text-sm cursor-pointer"
+                :class="form.is_head ? 'opacity-50 cursor-not-allowed' : ''"
+              >
                 <input
                   v-model="form.is_lead"
                   type="checkbox"
