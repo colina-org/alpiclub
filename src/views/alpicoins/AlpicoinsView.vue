@@ -286,17 +286,17 @@ const pendingRedeemCount = computed(() => (allRedeemQ.data.value ?? []).filter(r
           <ChevronUp v-else class="w-4 h-4 text-muted" />
         </button>
 
-        <div v-if="earnFormOpen" class="mt-4 space-y-3">
-          <div>
+        <div v-if="earnFormOpen" class="mt-5 pt-5 border-t border-line space-y-5">
+          <div class="space-y-1.5">
             <label class="label">O que você fez?</label>
             <textarea
               v-model="earnForm.description"
               class="input resize-none"
-              rows="2"
+              rows="3"
               placeholder="Ex: Concluí o curso de Google Ads na Udemy (20h)"
             />
           </div>
-          <div>
+          <div class="space-y-1.5">
             <label class="label">Coins solicitados</label>
             <input
               v-model="earnForm.coins_requested"
@@ -307,7 +307,7 @@ const pendingRedeemCount = computed(() => (allRedeemQ.data.value ?? []).filter(r
             />
           </div>
           <p class="text-xs text-muted">O time de Gente &amp; Gestão irá avaliar e aprovar seu pedido.</p>
-          <div class="flex justify-end gap-2">
+          <div class="flex justify-end gap-2 pt-1">
             <button class="btn-ghost btn-sm" @click="earnFormOpen = false">Cancelar</button>
             <button
               class="btn-primary btn-sm"
@@ -481,7 +481,7 @@ const pendingRedeemCount = computed(() => (allRedeemQ.data.value ?? []).filter(r
       <div class="space-y-6">
 
         <!-- Pedidos de ganho pendentes -->
-        <div class="card space-y-4">
+        <div class="card space-y-5">
           <div class="flex items-center justify-between">
             <h2 class="font-semibold text-ink flex items-center gap-2">
               <Coins class="w-4 h-4 text-brand-600" />
@@ -496,43 +496,45 @@ const pendingRedeemCount = computed(() => (allRedeemQ.data.value ?? []).filter(r
           <div v-else-if="(allEarnQ.data.value ?? []).length === 0" class="text-center py-6 text-muted text-sm">
             Nenhum pedido.
           </div>
-          <ul v-else class="space-y-3">
+          <ul v-else class="space-y-4">
             <li
               v-for="r in allEarnQ.data.value"
               :key="r.id"
-              class="border border-line rounded-xl p-4 space-y-3"
+              class="border border-line rounded-2xl p-5 space-y-4"
+              :class="r.status === 'pending' ? 'bg-yellow-50/40 border-yellow-200' : ''"
             >
               <div class="flex items-start gap-3">
                 <img
                   v-if="r.profile?.avatar_url"
                   :src="r.profile.avatar_url"
-                  class="w-8 h-8 rounded-full object-cover shrink-0"
+                  class="w-10 h-10 rounded-full object-cover shrink-0"
                 />
-                <div class="w-8 h-8 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-xs font-semibold shrink-0" v-else>
+                <div class="w-10 h-10 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-sm font-semibold shrink-0" v-else>
                   {{ (r.profile?.full_name ?? '?')[0] }}
                 </div>
                 <div class="flex-1 min-w-0">
-                  <p class="text-sm font-medium text-ink">{{ r.profile?.full_name ?? r.profile?.email }}</p>
-                  <p class="text-sm text-muted mt-0.5">{{ r.description }}</p>
-                  <p class="text-xs text-muted mt-1">{{ formatDate(r.created_at) }}</p>
+                  <p class="text-sm font-semibold text-ink">{{ r.profile?.full_name ?? r.profile?.email }}</p>
+                  <p class="text-sm text-muted mt-1 leading-relaxed">{{ r.description }}</p>
+                  <p class="text-xs text-muted mt-1.5">{{ formatDate(r.created_at) }}</p>
                 </div>
-                <div class="flex flex-col items-end gap-1 shrink-0">
-                  <span class="font-bold text-brand-700">{{ r.coins_requested }} coins</span>
-                  <span class="text-xs px-2 py-0.5 rounded-full" :class="EARN_STATUS_COLOR[r.status]">
+                <div class="flex flex-col items-end gap-1.5 shrink-0">
+                  <span class="font-bold text-brand-700 text-base">{{ r.coins_requested }} coins</span>
+                  <span class="text-xs px-2.5 py-1 rounded-full font-medium" :class="EARN_STATUS_COLOR[r.status]">
                     {{ EARN_STATUS_LABEL[r.status] }}
                   </span>
                 </div>
               </div>
 
               <template v-if="r.status === 'pending'">
-                <div>
+                <div class="space-y-1.5">
+                  <label class="label">Observação (opcional)</label>
                   <input
                     v-model="earnReviewNote[r.id]"
-                    class="input text-sm"
-                    placeholder="Observação (opcional)"
+                    class="input"
+                    placeholder="Motivo da recusa ou nota de aprovação"
                   />
                 </div>
-                <div class="flex gap-2 justify-end">
+                <div class="flex gap-2 justify-end pt-1">
                   <button
                     class="btn-ghost btn-sm text-red-600 hover:bg-red-50"
                     :disabled="reviewingEarnId === r.id"
@@ -554,7 +556,7 @@ const pendingRedeemCount = computed(() => (allRedeemQ.data.value ?? []).filter(r
         </div>
 
         <!-- Resgates pendentes -->
-        <div class="card space-y-4">
+        <div class="card space-y-5">
           <div class="flex items-center justify-between">
             <h2 class="font-semibold text-ink flex items-center gap-2">
               <ShoppingBag class="w-4 h-4 text-brand-600" />
@@ -569,43 +571,45 @@ const pendingRedeemCount = computed(() => (allRedeemQ.data.value ?? []).filter(r
           <div v-else-if="(allRedeemQ.data.value ?? []).length === 0" class="text-center py-6 text-muted text-sm">
             Nenhum resgate.
           </div>
-          <ul v-else class="space-y-3">
+          <ul v-else class="space-y-4">
             <li
               v-for="r in allRedeemQ.data.value"
               :key="r.id"
-              class="border border-line rounded-xl p-4 space-y-3"
+              class="border border-line rounded-2xl p-5 space-y-4"
+              :class="r.status === 'pending' ? 'bg-yellow-50/40 border-yellow-200' : r.status === 'approved' ? 'bg-blue-50/30 border-blue-200' : ''"
             >
               <div class="flex items-start gap-3">
                 <img
                   v-if="r.profile?.avatar_url"
                   :src="r.profile.avatar_url"
-                  class="w-8 h-8 rounded-full object-cover shrink-0"
+                  class="w-10 h-10 rounded-full object-cover shrink-0"
                 />
-                <div class="w-8 h-8 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-xs font-semibold shrink-0" v-else>
+                <div class="w-10 h-10 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-sm font-semibold shrink-0" v-else>
                   {{ (r.profile?.full_name ?? '?')[0] }}
                 </div>
                 <div class="flex-1 min-w-0">
-                  <p class="text-sm font-medium text-ink">{{ r.profile?.full_name ?? r.profile?.email }}</p>
-                  <p class="text-sm text-muted">Prêmio: <span class="font-medium text-ink">{{ r.product?.name ?? '—' }}</span></p>
-                  <p class="text-xs text-muted mt-1">{{ formatDate(r.created_at) }}</p>
+                  <p class="text-sm font-semibold text-ink">{{ r.profile?.full_name ?? r.profile?.email }}</p>
+                  <p class="text-sm text-muted mt-1">Prêmio: <span class="font-medium text-ink">{{ r.product?.name ?? '—' }}</span></p>
+                  <p class="text-xs text-muted mt-1.5">{{ formatDate(r.created_at) }}</p>
                 </div>
-                <div class="flex flex-col items-end gap-1 shrink-0">
-                  <span class="font-bold text-red-600">-{{ r.product?.price_coins ?? 0 }} coins</span>
-                  <span class="text-xs px-2 py-0.5 rounded-full" :class="REDEEM_STATUS_COLOR[r.status]">
+                <div class="flex flex-col items-end gap-1.5 shrink-0">
+                  <span class="font-bold text-red-600 text-base">-{{ r.product?.price_coins ?? 0 }} coins</span>
+                  <span class="text-xs px-2.5 py-1 rounded-full font-medium" :class="REDEEM_STATUS_COLOR[r.status]">
                     {{ REDEEM_STATUS_LABEL[r.status] }}
                   </span>
                 </div>
               </div>
 
               <template v-if="r.status === 'pending'">
-                <div>
+                <div class="space-y-1.5">
+                  <label class="label">Observação (opcional)</label>
                   <input
                     v-model="redeemReviewNote[r.id]"
-                    class="input text-sm"
-                    placeholder="Observação (opcional)"
+                    class="input"
+                    placeholder="Motivo da recusa ou nota de aprovação"
                   />
                 </div>
-                <div class="flex gap-2 justify-end">
+                <div class="flex gap-2 justify-end pt-1">
                   <button
                     class="btn-ghost btn-sm text-red-600 hover:bg-red-50"
                     :disabled="reviewingRedeemId === r.id"
@@ -623,7 +627,7 @@ const pendingRedeemCount = computed(() => (allRedeemQ.data.value ?? []).filter(r
                 </div>
               </template>
               <template v-else-if="r.status === 'approved'">
-                <div class="flex justify-end">
+                <div class="flex justify-end pt-1">
                   <button
                     class="btn-primary btn-sm"
                     :disabled="reviewingRedeemId === r.id"
@@ -638,7 +642,7 @@ const pendingRedeemCount = computed(() => (allRedeemQ.data.value ?? []).filter(r
         </div>
 
         <!-- Catálogo de produtos -->
-        <div class="card space-y-4">
+        <div class="card space-y-5">
           <div class="flex items-center justify-between">
             <h2 class="font-semibold text-ink flex items-center gap-2">
               <ShoppingBag class="w-4 h-4 text-brand-600" />
@@ -650,38 +654,40 @@ const pendingRedeemCount = computed(() => (allRedeemQ.data.value ?? []).filter(r
           </div>
 
           <!-- Formulário de produto -->
-          <div v-if="productFormOpen" class="border border-line rounded-xl p-4 space-y-3 bg-surface">
-            <h3 class="text-sm font-semibold text-ink">{{ editingProduct ? 'Editar prêmio' : 'Novo prêmio' }}</h3>
-            <div>
+          <div v-if="productFormOpen" class="border border-brand-200 rounded-2xl p-6 space-y-5 bg-brand-50/40">
+            <h3 class="text-base font-semibold text-ink pb-3 border-b border-line">
+              {{ editingProduct ? 'Editar prêmio' : 'Novo prêmio' }}
+            </h3>
+            <div class="space-y-1.5">
               <label class="label">Nome</label>
               <input v-model="productForm.name" class="input" placeholder="Ex: Ingresso de cinema" />
             </div>
-            <div>
+            <div class="space-y-1.5">
               <label class="label">Descrição</label>
-              <textarea v-model="productForm.description" class="input resize-none" rows="2" placeholder="Descrição do prêmio" />
+              <textarea v-model="productForm.description" class="input resize-none" rows="3" placeholder="Descreva o prêmio brevemente" />
             </div>
-            <div>
+            <div class="space-y-1.5">
               <label class="label">URL da imagem</label>
               <input v-model="productForm.image_url" class="input" placeholder="https://..." />
             </div>
-            <div class="grid grid-cols-2 gap-3">
-              <div>
+            <div class="grid grid-cols-2 gap-4">
+              <div class="space-y-1.5">
                 <label class="label">Preço (coins)</label>
                 <input v-model="productForm.price_coins" type="number" min="1" class="input" placeholder="100" />
               </div>
-              <div>
-                <label class="label">Estoque <span class="text-muted">(vazio = ilimitado)</span></label>
+              <div class="space-y-1.5">
+                <label class="label">Estoque <span class="text-muted font-normal">(vazio = ilimitado)</span></label>
                 <input v-model="productForm.stock" type="number" min="1" class="input" placeholder="—" />
               </div>
             </div>
-            <div class="flex gap-2 justify-end">
+            <div class="flex gap-2 justify-end pt-1">
               <button class="btn-ghost btn-sm" @click="productFormOpen = false">Cancelar</button>
               <button
                 class="btn-primary btn-sm"
                 :disabled="!productForm.name.trim() || !productForm.price_coins"
                 @click="submitProductForm"
               >
-                Salvar
+                Salvar prêmio
               </button>
             </div>
           </div>
@@ -694,24 +700,24 @@ const pendingRedeemCount = computed(() => (allRedeemQ.data.value ?? []).filter(r
             <li
               v-for="p in productsQ.data.value"
               :key="p.id"
-              class="flex items-center gap-3 py-3"
+              class="flex items-center gap-4 py-4"
             >
               <img
                 v-if="p.image_url"
                 :src="p.image_url"
-                class="w-10 h-10 rounded-lg object-cover shrink-0"
+                class="w-12 h-12 rounded-xl object-cover shrink-0"
               />
-              <div class="w-10 h-10 rounded-lg bg-surface flex items-center justify-center shrink-0" v-else>
+              <div class="w-12 h-12 rounded-xl bg-surface border border-line flex items-center justify-center shrink-0" v-else>
                 <ShoppingBag class="w-5 h-5 text-muted opacity-40" />
               </div>
               <div class="flex-1 min-w-0">
-                <p class="text-sm font-medium text-ink">{{ p.name }}</p>
-                <p class="text-xs text-muted flex items-center gap-1">
+                <p class="text-sm font-semibold text-ink">{{ p.name }}</p>
+                <p class="text-xs text-muted flex items-center gap-1 mt-0.5">
                   <Coins class="w-3 h-3" /> {{ p.price_coins.toLocaleString('pt-BR') }} coins
-                  <span v-if="!p.is_active" class="ml-1 text-red-500">(inativo)</span>
+                  <span v-if="!p.is_active" class="ml-2 text-red-500 font-medium">(inativo)</span>
                 </p>
               </div>
-              <div class="flex items-center gap-1">
+              <div class="flex items-center gap-2">
                 <button class="btn-ghost btn-sm" @click="openEditProduct(p)">Editar</button>
                 <button
                   class="btn-ghost btn-sm text-red-600 hover:bg-red-50"
