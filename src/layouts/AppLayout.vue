@@ -8,6 +8,7 @@ import {
   Trophy,
   Target,
   BookOpen,
+  Coins,
   Settings,
   UserCircle2,
   LogOut,
@@ -42,6 +43,7 @@ const navItems = [
   { name: 'Conquistas', to: { name: 'achievements' }, icon: Trophy },
   { name: 'PDI', to: { name: 'pdi' }, icon: Target },
   { name: 'Biblioteca', to: { name: 'library' }, icon: BookOpen },
+  { name: 'Alpicoins', to: { name: 'alpicoins' }, icon: Coins },
   { name: 'Administração', to: { name: 'admin' }, icon: Settings },
 ]
 

@@ -1,0 +1,728 @@
+<script setup lang="ts">
+import { computed, ref } from 'vue'
+import { Coins, ShoppingBag, Clock, CheckCircle2, XCircle, Plus, ChevronDown, ChevronUp } from 'lucide-vue-next'
+import { useAuthStore } from '@/stores/auth'
+import { useUiStore } from '@/stores/ui'
+import {
+  useAlpicoinsProducts,
+  useMyAlpicoinsBalance,
+  useMyAlpicoinsTransactions,
+  useMyEarnRequests,
+  useMyRedemptions,
+  useCreateEarnRequest,
+  useCreateRedemption,
+  useAllEarnRequests,
+  useAllRedemptions,
+  useReviewEarnRequest,
+  useReviewRedemption,
+  useCreateAlpicoinsProduct,
+  useUpdateAlpicoinsProduct,
+  useDeleteAlpicoinsProduct,
+} from '@/composables/useAlpicoins'
+import type { AlpicoinsProduct, AlpicoinsRedemptionStatus, AlpicoinsEarnStatus } from '@/types/database'
+
+const auth = useAuthStore()
+const ui = useUiStore()
+
+const uid = computed(() => auth.user?.id)
+
+const productsQ    = useAlpicoinsProducts()
+const balanceQ     = useMyAlpicoinsBalance(uid)
+const transactionsQ = useMyAlpicoinsTransactions(uid)
+const earnRequestsQ = useMyEarnRequests(uid)
+const redemptionsQ  = useMyRedemptions(uid)
+
+// Admin queries
+const allEarnQ      = useAllEarnRequests()
+const allRedeemQ    = useAllRedemptions()
+
+const createEarn    = useCreateEarnRequest()
+const createRedeem  = useCreateRedemption()
+const reviewEarn    = useReviewEarnRequest()
+const reviewRedeem  = useReviewRedemption()
+const createProduct = useCreateAlpicoinsProduct()
+const updateProduct = useUpdateAlpicoinsProduct()
+const deleteProduct = useDeleteAlpicoinsProduct()
+
+// ── Tabs ──────────────────────────────────────────────────────────────
+type Tab = 'shop' | 'history' | 'admin'
+const tab = ref<Tab>('shop')
+
+const balance = computed(() => balanceQ.data.value ?? 0)
+
+function canAfford(product: AlpicoinsProduct) {
+  return balance.value >= product.price_coins
+}
+
+// ── Earn request form ─────────────────────────────────────────────────
+const earnFormOpen = ref(false)
+const earnForm = ref({ description: '', coins_requested: '' })
+
+async function submitEarnRequest() {
+  if (!uid.value || !earnForm.value.description.trim() || !earnForm.value.coins_requested) return
+  await createEarn.mutateAsync({
+    profile_id: uid.value,
+    description: earnForm.value.description.trim(),
+    coins_requested: Number(earnForm.value.coins_requested),
+  })
+  earnForm.value = { description: '', coins_requested: '' }
+  earnFormOpen.value = false
+  ui.pushToast('Pedido enviado! Aguarde a aprovação.', 'success')
+}
+
+// ── Redeem ────────────────────────────────────────────────────────────
+const redeemingId = ref<string | null>(null)
+
+async function handleRedeem(product: AlpicoinsProduct) {
+  if (!uid.value || !canAfford(product)) return
+  if (!confirm(`Solicitar resgate de "${product.name}" por ${product.price_coins} Alpicoins?`)) return
+  redeemingId.value = product.id
+  try {
+    await createRedeem.mutateAsync({ profile_id: uid.value, product_id: product.id })
+    ui.pushToast('Pedido de resgate enviado! Aguarde a aprovação.', 'success')
+  } finally {
+    redeemingId.value = null
+  }
+}
+
+// ── Admin: review earn ────────────────────────────────────────────────
+const reviewingEarnId = ref<string | null>(null)
+const earnReviewNote = ref<Record<string, string>>({})
+
+async function handleReviewEarn(
+  req: { id: string; profile_id: string; coins_requested: number; description: string },
+  status: 'approved' | 'rejected',
+) {
+  if (!uid.value) return
+  reviewingEarnId.value = req.id
+  try {
+    await reviewEarn.mutateAsync({
+      id: req.id,
+      profile_id: req.profile_id,
+      status,
+      coins_requested: req.coins_requested,
+      description: req.description,
+      reviewed_by: uid.value,
+      review_note: earnReviewNote.value[req.id] ?? undefined,
+    })
+    ui.pushToast(status === 'approved' ? 'Aprovado! Coins creditados.' : 'Recusado.', 'success')
+  } finally {
+    reviewingEarnId.value = null
+  }
+}
+
+// ── Admin: review redemption ──────────────────────────────────────────
+const reviewingRedeemId = ref<string | null>(null)
+const redeemReviewNote = ref<Record<string, string>>({})
+
+async function handleReviewRedeem(
+  req: { id: string; profile_id: string; product_id: string; product: { price_coins: number; name: string } | null },
+  status: 'approved' | 'rejected' | 'delivered',
+) {
+  if (!uid.value || !req.product) return
+  reviewingRedeemId.value = req.id
+  try {
+    await reviewRedeem.mutateAsync({
+      id: req.id,
+      profile_id: req.profile_id,
+      product_id: req.product_id,
+      price_coins: req.product.price_coins,
+      product_name: req.product.name,
+      status,
+      reviewed_by: uid.value,
+      review_note: redeemReviewNote.value[req.id] ?? undefined,
+    })
+    ui.pushToast(status === 'approved' ? 'Aprovado! Coins debitados.' : status === 'delivered' ? 'Marcado como entregue.' : 'Recusado.', 'success')
+  } finally {
+    reviewingRedeemId.value = null
+  }
+}
+
+// ── Admin: product form ───────────────────────────────────────────────
+const productFormOpen = ref(false)
+const editingProduct = ref<AlpicoinsProduct | null>(null)
+const productForm = ref({
+  name: '',
+  description: '',
+  image_url: '',
+  price_coins: '',
+  stock: '',
+})
+
+function openNewProduct() {
+  editingProduct.value = null
+  productForm.value = { name: '', description: '', image_url: '', price_coins: '', stock: '' }
+  productFormOpen.value = true
+}
+
+function openEditProduct(p: AlpicoinsProduct) {
+  editingProduct.value = p
+  productForm.value = {
+    name: p.name,
+    description: p.description ?? '',
+    image_url: p.image_url ?? '',
+    price_coins: String(p.price_coins),
+    stock: p.stock != null ? String(p.stock) : '',
+  }
+  productFormOpen.value = true
+}
+
+async function submitProductForm() {
+  if (!uid.value || !productForm.value.name.trim() || !productForm.value.price_coins) return
+  const payload = {
+    name: productForm.value.name.trim(),
+    description: productForm.value.description.trim() || null,
+    image_url: productForm.value.image_url.trim() || null,
+    price_coins: Number(productForm.value.price_coins),
+    stock: productForm.value.stock ? Number(productForm.value.stock) : null,
+  }
+  if (editingProduct.value) {
+    await updateProduct.mutateAsync({ id: editingProduct.value.id, patch: payload })
+    ui.pushToast('Produto atualizado.', 'success')
+  } else {
+    await createProduct.mutateAsync({ ...payload, created_by: uid.value })
+    ui.pushToast('Produto criado.', 'success')
+  }
+  productFormOpen.value = false
+}
+
+async function handleDeleteProduct(id: string) {
+  if (!confirm('Excluir este produto?')) return
+  await deleteProduct.mutateAsync(id)
+  ui.pushToast('Produto excluído.', 'success')
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────
+const EARN_STATUS_LABEL: Record<AlpicoinsEarnStatus, string> = {
+  pending: 'Pendente',
+  approved: 'Aprovado',
+  rejected: 'Recusado',
+}
+const EARN_STATUS_COLOR: Record<AlpicoinsEarnStatus, string> = {
+  pending: 'bg-yellow-100 text-yellow-700',
+  approved: 'bg-green-100 text-green-700',
+  rejected: 'bg-red-100 text-red-700',
+}
+const REDEEM_STATUS_LABEL: Record<AlpicoinsRedemptionStatus, string> = {
+  pending: 'Pendente',
+  approved: 'Aprovado',
+  rejected: 'Recusado',
+  delivered: 'Entregue',
+}
+const REDEEM_STATUS_COLOR: Record<AlpicoinsRedemptionStatus, string> = {
+  pending: 'bg-yellow-100 text-yellow-700',
+  approved: 'bg-blue-100 text-blue-700',
+  rejected: 'bg-red-100 text-red-700',
+  delivered: 'bg-green-100 text-green-700',
+}
+
+function formatDate(d: string) {
+  return new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+}
+
+const pendingEarnCount = computed(() => (allEarnQ.data.value ?? []).filter(r => r.status === 'pending').length)
+const pendingRedeemCount = computed(() => (allRedeemQ.data.value ?? []).filter(r => r.status === 'pending').length)
+</script>
+
+<template>
+  <div class="max-w-5xl mx-auto space-y-6">
+
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div>
+        <h1 class="text-2xl font-bold text-ink flex items-center gap-2">
+          <Coins class="w-7 h-7 text-brand-600" :stroke-width="1.75" />
+          Alpicoins
+        </h1>
+        <p class="text-sm text-muted mt-0.5">Troque suas conquistas por prêmios</p>
+      </div>
+
+      <!-- Saldo -->
+      <div class="bg-brand-50 border border-brand-200 rounded-2xl px-6 py-3 flex items-center gap-3">
+        <Coins class="w-6 h-6 text-brand-600" :stroke-width="1.75" />
+        <div>
+          <p class="text-xs text-brand-600 font-medium uppercase tracking-wide">Seu saldo</p>
+          <p class="text-2xl font-bold text-brand-700 leading-none">
+            {{ balanceQ.isLoading.value ? '…' : balance.toLocaleString('pt-BR') }}
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="flex gap-1 bg-surface rounded-xl p-1 w-fit">
+      <button
+        v-for="t in auth.isAdmin
+          ? [{ key: 'shop', label: 'Lojinha' }, { key: 'history', label: 'Meu histórico' }, { key: 'admin', label: 'Administrar' }]
+          : [{ key: 'shop', label: 'Lojinha' }, { key: 'history', label: 'Meu histórico' }]"
+        :key="t.key"
+        class="relative px-4 py-1.5 rounded-lg text-sm font-medium transition-colors"
+        :class="tab === t.key ? 'bg-panel text-ink shadow-sm' : 'text-muted hover:text-ink'"
+        @click="tab = t.key as Tab"
+      >
+        {{ t.label }}
+        <span
+          v-if="t.key === 'admin' && (pendingEarnCount + pendingRedeemCount) > 0"
+          class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center leading-none"
+        >
+          {{ pendingEarnCount + pendingRedeemCount }}
+        </span>
+      </button>
+    </div>
+
+    <!-- ── TAB: LOJINHA ─────────────────────────────────────────────── -->
+    <template v-if="tab === 'shop'">
+      <!-- Solicitar coins -->
+      <div class="card">
+        <button
+          class="w-full flex items-center justify-between text-left"
+          @click="earnFormOpen = !earnFormOpen"
+        >
+          <div class="flex items-center gap-2">
+            <Plus class="w-4 h-4 text-brand-600" />
+            <span class="font-medium text-ink text-sm">Solicitar Alpicoins</span>
+          </div>
+          <ChevronDown v-if="!earnFormOpen" class="w-4 h-4 text-muted" />
+          <ChevronUp v-else class="w-4 h-4 text-muted" />
+        </button>
+
+        <div v-if="earnFormOpen" class="mt-4 space-y-3">
+          <div>
+            <label class="label">O que você fez?</label>
+            <textarea
+              v-model="earnForm.description"
+              class="input resize-none"
+              rows="2"
+              placeholder="Ex: Concluí o curso de Google Ads na Udemy (20h)"
+            />
+          </div>
+          <div>
+            <label class="label">Coins solicitados</label>
+            <input
+              v-model="earnForm.coins_requested"
+              type="number"
+              min="1"
+              class="input"
+              placeholder="Ex: 50"
+            />
+          </div>
+          <p class="text-xs text-muted">O time de Gente &amp; Gestão irá avaliar e aprovar seu pedido.</p>
+          <div class="flex justify-end gap-2">
+            <button class="btn-ghost btn-sm" @click="earnFormOpen = false">Cancelar</button>
+            <button
+              class="btn-primary btn-sm"
+              :disabled="!earnForm.description.trim() || !earnForm.coins_requested || createEarn.isPending.value"
+              @click="submitEarnRequest"
+            >
+              Enviar pedido
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Produtos -->
+      <div v-if="productsQ.isLoading.value" class="text-center py-12 text-muted text-sm">
+        Carregando prêmios…
+      </div>
+      <div
+        v-else-if="(productsQ.data.value ?? []).filter(p => p.is_active).length === 0"
+        class="text-center py-16 text-muted"
+      >
+        <ShoppingBag class="w-10 h-10 mx-auto mb-3 opacity-30" />
+        <p class="text-sm">Nenhum prêmio disponível ainda.</p>
+      </div>
+      <div v-else class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div
+          v-for="product in (productsQ.data.value ?? []).filter(p => p.is_active)"
+          :key="product.id"
+          class="card !p-0 overflow-hidden flex flex-col transition-all duration-200"
+          :class="canAfford(product) ? '' : 'opacity-60'"
+        >
+          <!-- Imagem -->
+          <div class="aspect-square bg-surface relative overflow-hidden">
+            <img
+              v-if="product.image_url"
+              :src="product.image_url"
+              :alt="product.name"
+              class="w-full h-full object-cover transition-all duration-200"
+              :class="canAfford(product) ? '' : 'grayscale'"
+            />
+            <div v-else class="w-full h-full flex items-center justify-center">
+              <ShoppingBag class="w-10 h-10 text-muted opacity-30" />
+            </div>
+
+            <!-- Badge disponível / insuficiente -->
+            <span
+              class="absolute top-2 left-2 text-xs font-semibold px-2 py-0.5 rounded-full"
+              :class="canAfford(product) ? 'bg-green-100 text-green-700' : 'bg-surface text-muted'"
+            >
+              {{ canAfford(product) ? 'Disponível' : 'Saldo insuficiente' }}
+            </span>
+          </div>
+
+          <!-- Info -->
+          <div class="p-3 flex flex-col gap-2 flex-1">
+            <p class="text-sm font-semibold text-ink leading-snug">{{ product.name }}</p>
+            <p v-if="product.description" class="text-xs text-muted leading-snug line-clamp-2">
+              {{ product.description }}
+            </p>
+            <div class="flex items-center gap-1 mt-auto">
+              <Coins class="w-3.5 h-3.5 text-brand-600" />
+              <span class="text-sm font-bold text-brand-700">{{ product.price_coins.toLocaleString('pt-BR') }}</span>
+            </div>
+            <button
+              class="btn-primary btn-sm w-full mt-1"
+              :disabled="!canAfford(product) || redeemingId === product.id"
+              @click="handleRedeem(product)"
+            >
+              {{ redeemingId === product.id ? 'Enviando…' : 'Resgatar' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <!-- ── TAB: HISTÓRICO ───────────────────────────────────────────── -->
+    <template v-else-if="tab === 'history'">
+      <div class="grid md:grid-cols-2 gap-6">
+
+        <!-- Pedidos de coins -->
+        <div class="card space-y-4">
+          <h2 class="font-semibold text-ink text-sm flex items-center gap-2">
+            <Coins class="w-4 h-4 text-brand-600" />
+            Pedidos de coins
+          </h2>
+          <button class="btn-ghost btn-sm w-full" @click="earnFormOpen = !earnFormOpen; tab = 'shop'">
+            <Plus class="w-3.5 h-3.5" /> Novo pedido
+          </button>
+          <div v-if="earnRequestsQ.isLoading.value" class="text-center py-6 text-muted text-sm">Carregando…</div>
+          <div v-else-if="(earnRequestsQ.data.value ?? []).length === 0" class="text-center py-6 text-muted text-sm">
+            Nenhum pedido ainda.
+          </div>
+          <ul v-else class="space-y-2">
+            <li
+              v-for="r in earnRequestsQ.data.value"
+              :key="r.id"
+              class="flex items-start justify-between gap-2 text-sm py-2 border-b border-line last:border-0"
+            >
+              <div class="flex-1 min-w-0">
+                <p class="text-ink truncate">{{ r.description }}</p>
+                <p class="text-xs text-muted">{{ formatDate(r.created_at) }}</p>
+                <p v-if="r.review_note" class="text-xs text-muted italic mt-0.5">"{{ r.review_note }}"</p>
+              </div>
+              <div class="flex flex-col items-end gap-1 shrink-0">
+                <span class="font-semibold text-brand-700">+{{ r.coins_requested }}</span>
+                <span class="text-xs px-2 py-0.5 rounded-full" :class="EARN_STATUS_COLOR[r.status]">
+                  {{ EARN_STATUS_LABEL[r.status] }}
+                </span>
+              </div>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Resgates -->
+        <div class="card space-y-4">
+          <h2 class="font-semibold text-ink text-sm flex items-center gap-2">
+            <ShoppingBag class="w-4 h-4 text-brand-600" />
+            Meus resgates
+          </h2>
+          <div v-if="redemptionsQ.isLoading.value" class="text-center py-6 text-muted text-sm">Carregando…</div>
+          <div v-else-if="(redemptionsQ.data.value ?? []).length === 0" class="text-center py-6 text-muted text-sm">
+            Nenhum resgate ainda.
+          </div>
+          <ul v-else class="space-y-2">
+            <li
+              v-for="r in redemptionsQ.data.value"
+              :key="r.id"
+              class="flex items-start justify-between gap-2 text-sm py-2 border-b border-line last:border-0"
+            >
+              <div class="flex-1 min-w-0">
+                <p class="text-ink text-xs text-muted">{{ formatDate(r.created_at) }}</p>
+                <p v-if="r.review_note" class="text-xs text-muted italic mt-0.5">"{{ r.review_note }}"</p>
+              </div>
+              <span class="text-xs px-2 py-0.5 rounded-full shrink-0" :class="REDEEM_STATUS_COLOR[r.status]">
+                {{ REDEEM_STATUS_LABEL[r.status] }}
+              </span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Extrato -->
+        <div class="card space-y-4 md:col-span-2">
+          <h2 class="font-semibold text-ink text-sm flex items-center gap-2">
+            <Clock class="w-4 h-4 text-brand-600" />
+            Extrato de movimentações
+          </h2>
+          <div v-if="transactionsQ.isLoading.value" class="text-center py-6 text-muted text-sm">Carregando…</div>
+          <div v-else-if="(transactionsQ.data.value ?? []).length === 0" class="text-center py-6 text-muted text-sm">
+            Nenhuma movimentação ainda.
+          </div>
+          <ul v-else class="space-y-2">
+            <li
+              v-for="t in transactionsQ.data.value"
+              :key="t.id"
+              class="flex items-center justify-between gap-2 text-sm py-2 border-b border-line last:border-0"
+            >
+              <div class="flex-1 min-w-0">
+                <p class="text-ink">{{ t.description }}</p>
+                <p class="text-xs text-muted">{{ formatDate(t.created_at) }}</p>
+              </div>
+              <span class="font-bold" :class="t.coins > 0 ? 'text-green-600' : 'text-red-500'">
+                {{ t.coins > 0 ? '+' : '' }}{{ t.coins.toLocaleString('pt-BR') }}
+              </span>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </template>
+
+    <!-- ── TAB: ADMIN ───────────────────────────────────────────────── -->
+    <template v-else-if="tab === 'admin' && auth.isAdmin">
+      <div class="space-y-6">
+
+        <!-- Pedidos de ganho pendentes -->
+        <div class="card space-y-4">
+          <div class="flex items-center justify-between">
+            <h2 class="font-semibold text-ink flex items-center gap-2">
+              <Coins class="w-4 h-4 text-brand-600" />
+              Pedidos de Alpicoins
+              <span v-if="pendingEarnCount > 0" class="bg-red-100 text-red-700 text-xs px-2 py-0.5 rounded-full">
+                {{ pendingEarnCount }} pendente{{ pendingEarnCount > 1 ? 's' : '' }}
+              </span>
+            </h2>
+          </div>
+
+          <div v-if="allEarnQ.isLoading.value" class="text-center py-6 text-muted text-sm">Carregando…</div>
+          <div v-else-if="(allEarnQ.data.value ?? []).length === 0" class="text-center py-6 text-muted text-sm">
+            Nenhum pedido.
+          </div>
+          <ul v-else class="space-y-3">
+            <li
+              v-for="r in allEarnQ.data.value"
+              :key="r.id"
+              class="border border-line rounded-xl p-4 space-y-3"
+            >
+              <div class="flex items-start gap-3">
+                <img
+                  v-if="r.profile?.avatar_url"
+                  :src="r.profile.avatar_url"
+                  class="w-8 h-8 rounded-full object-cover shrink-0"
+                />
+                <div class="w-8 h-8 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-xs font-semibold shrink-0" v-else>
+                  {{ (r.profile?.full_name ?? '?')[0] }}
+                </div>
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm font-medium text-ink">{{ r.profile?.full_name ?? r.profile?.email }}</p>
+                  <p class="text-sm text-muted mt-0.5">{{ r.description }}</p>
+                  <p class="text-xs text-muted mt-1">{{ formatDate(r.created_at) }}</p>
+                </div>
+                <div class="flex flex-col items-end gap-1 shrink-0">
+                  <span class="font-bold text-brand-700">{{ r.coins_requested }} coins</span>
+                  <span class="text-xs px-2 py-0.5 rounded-full" :class="EARN_STATUS_COLOR[r.status]">
+                    {{ EARN_STATUS_LABEL[r.status] }}
+                  </span>
+                </div>
+              </div>
+
+              <template v-if="r.status === 'pending'">
+                <div>
+                  <input
+                    v-model="earnReviewNote[r.id]"
+                    class="input text-sm"
+                    placeholder="Observação (opcional)"
+                  />
+                </div>
+                <div class="flex gap-2 justify-end">
+                  <button
+                    class="btn-ghost btn-sm text-red-600 hover:bg-red-50"
+                    :disabled="reviewingEarnId === r.id"
+                    @click="handleReviewEarn(r, 'rejected')"
+                  >
+                    <XCircle class="w-3.5 h-3.5" /> Recusar
+                  </button>
+                  <button
+                    class="btn-primary btn-sm"
+                    :disabled="reviewingEarnId === r.id"
+                    @click="handleReviewEarn(r, 'approved')"
+                  >
+                    <CheckCircle2 class="w-3.5 h-3.5" /> Aprovar
+                  </button>
+                </div>
+              </template>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Resgates pendentes -->
+        <div class="card space-y-4">
+          <div class="flex items-center justify-between">
+            <h2 class="font-semibold text-ink flex items-center gap-2">
+              <ShoppingBag class="w-4 h-4 text-brand-600" />
+              Pedidos de resgate
+              <span v-if="pendingRedeemCount > 0" class="bg-red-100 text-red-700 text-xs px-2 py-0.5 rounded-full">
+                {{ pendingRedeemCount }} pendente{{ pendingRedeemCount > 1 ? 's' : '' }}
+              </span>
+            </h2>
+          </div>
+
+          <div v-if="allRedeemQ.isLoading.value" class="text-center py-6 text-muted text-sm">Carregando…</div>
+          <div v-else-if="(allRedeemQ.data.value ?? []).length === 0" class="text-center py-6 text-muted text-sm">
+            Nenhum resgate.
+          </div>
+          <ul v-else class="space-y-3">
+            <li
+              v-for="r in allRedeemQ.data.value"
+              :key="r.id"
+              class="border border-line rounded-xl p-4 space-y-3"
+            >
+              <div class="flex items-start gap-3">
+                <img
+                  v-if="r.profile?.avatar_url"
+                  :src="r.profile.avatar_url"
+                  class="w-8 h-8 rounded-full object-cover shrink-0"
+                />
+                <div class="w-8 h-8 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-xs font-semibold shrink-0" v-else>
+                  {{ (r.profile?.full_name ?? '?')[0] }}
+                </div>
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm font-medium text-ink">{{ r.profile?.full_name ?? r.profile?.email }}</p>
+                  <p class="text-sm text-muted">Prêmio: <span class="font-medium text-ink">{{ r.product?.name ?? '—' }}</span></p>
+                  <p class="text-xs text-muted mt-1">{{ formatDate(r.created_at) }}</p>
+                </div>
+                <div class="flex flex-col items-end gap-1 shrink-0">
+                  <span class="font-bold text-red-600">-{{ r.product?.price_coins ?? 0 }} coins</span>
+                  <span class="text-xs px-2 py-0.5 rounded-full" :class="REDEEM_STATUS_COLOR[r.status]">
+                    {{ REDEEM_STATUS_LABEL[r.status] }}
+                  </span>
+                </div>
+              </div>
+
+              <template v-if="r.status === 'pending'">
+                <div>
+                  <input
+                    v-model="redeemReviewNote[r.id]"
+                    class="input text-sm"
+                    placeholder="Observação (opcional)"
+                  />
+                </div>
+                <div class="flex gap-2 justify-end">
+                  <button
+                    class="btn-ghost btn-sm text-red-600 hover:bg-red-50"
+                    :disabled="reviewingRedeemId === r.id"
+                    @click="handleReviewRedeem(r as any, 'rejected')"
+                  >
+                    <XCircle class="w-3.5 h-3.5" /> Recusar
+                  </button>
+                  <button
+                    class="btn-primary btn-sm"
+                    :disabled="reviewingRedeemId === r.id"
+                    @click="handleReviewRedeem(r as any, 'approved')"
+                  >
+                    <CheckCircle2 class="w-3.5 h-3.5" /> Aprovar
+                  </button>
+                </div>
+              </template>
+              <template v-else-if="r.status === 'approved'">
+                <div class="flex justify-end">
+                  <button
+                    class="btn-primary btn-sm"
+                    :disabled="reviewingRedeemId === r.id"
+                    @click="handleReviewRedeem(r as any, 'delivered')"
+                  >
+                    <CheckCircle2 class="w-3.5 h-3.5" /> Marcar como entregue
+                  </button>
+                </div>
+              </template>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Catálogo de produtos -->
+        <div class="card space-y-4">
+          <div class="flex items-center justify-between">
+            <h2 class="font-semibold text-ink flex items-center gap-2">
+              <ShoppingBag class="w-4 h-4 text-brand-600" />
+              Catálogo de prêmios
+            </h2>
+            <button class="btn-primary btn-sm" @click="openNewProduct">
+              <Plus class="w-3.5 h-3.5" /> Novo prêmio
+            </button>
+          </div>
+
+          <!-- Formulário de produto -->
+          <div v-if="productFormOpen" class="border border-line rounded-xl p-4 space-y-3 bg-surface">
+            <h3 class="text-sm font-semibold text-ink">{{ editingProduct ? 'Editar prêmio' : 'Novo prêmio' }}</h3>
+            <div>
+              <label class="label">Nome</label>
+              <input v-model="productForm.name" class="input" placeholder="Ex: Ingresso de cinema" />
+            </div>
+            <div>
+              <label class="label">Descrição</label>
+              <textarea v-model="productForm.description" class="input resize-none" rows="2" placeholder="Descrição do prêmio" />
+            </div>
+            <div>
+              <label class="label">URL da imagem</label>
+              <input v-model="productForm.image_url" class="input" placeholder="https://..." />
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="label">Preço (coins)</label>
+                <input v-model="productForm.price_coins" type="number" min="1" class="input" placeholder="100" />
+              </div>
+              <div>
+                <label class="label">Estoque <span class="text-muted">(vazio = ilimitado)</span></label>
+                <input v-model="productForm.stock" type="number" min="1" class="input" placeholder="—" />
+              </div>
+            </div>
+            <div class="flex gap-2 justify-end">
+              <button class="btn-ghost btn-sm" @click="productFormOpen = false">Cancelar</button>
+              <button
+                class="btn-primary btn-sm"
+                :disabled="!productForm.name.trim() || !productForm.price_coins"
+                @click="submitProductForm"
+              >
+                Salvar
+              </button>
+            </div>
+          </div>
+
+          <div v-if="productsQ.isLoading.value" class="text-center py-6 text-muted text-sm">Carregando…</div>
+          <div v-else-if="(productsQ.data.value ?? []).length === 0" class="text-center py-6 text-muted text-sm">
+            Nenhum produto cadastrado.
+          </div>
+          <ul v-else class="divide-y divide-line">
+            <li
+              v-for="p in productsQ.data.value"
+              :key="p.id"
+              class="flex items-center gap-3 py-3"
+            >
+              <img
+                v-if="p.image_url"
+                :src="p.image_url"
+                class="w-10 h-10 rounded-lg object-cover shrink-0"
+              />
+              <div class="w-10 h-10 rounded-lg bg-surface flex items-center justify-center shrink-0" v-else>
+                <ShoppingBag class="w-5 h-5 text-muted opacity-40" />
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-medium text-ink">{{ p.name }}</p>
+                <p class="text-xs text-muted flex items-center gap-1">
+                  <Coins class="w-3 h-3" /> {{ p.price_coins.toLocaleString('pt-BR') }} coins
+                  <span v-if="!p.is_active" class="ml-1 text-red-500">(inativo)</span>
+                </p>
+              </div>
+              <div class="flex items-center gap-1">
+                <button class="btn-ghost btn-sm" @click="openEditProduct(p)">Editar</button>
+                <button
+                  class="btn-ghost btn-sm text-red-600 hover:bg-red-50"
+                  @click="handleDeleteProduct(p.id)"
+                >Excluir</button>
+              </div>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </template>
+
+  </div>
+</template>

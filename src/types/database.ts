@@ -340,3 +340,67 @@ export const NOTIFICATION_ICON: Record<NotificationType, string> = {
   book_return_reminder:    '📚',
   book_available_for_you:  '✨',
 }
+
+// ── Alpicoins ─────────────────────────────────────────────────────────
+
+export type AlpicoinsEarnStatus = 'pending' | 'approved' | 'rejected'
+export type AlpicoinsRedemptionStatus = 'pending' | 'approved' | 'rejected' | 'delivered'
+export type AlpicoinsSourceType = 'earn' | 'redemption' | 'manual'
+
+export interface AlpicoinsProduct {
+  id: string
+  name: string
+  description: string | null
+  image_url: string | null
+  price_coins: number
+  stock: number | null
+  is_active: boolean
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface AlpicoinsEarnRequest {
+  id: string
+  profile_id: string
+  description: string
+  coins_requested: number
+  status: AlpicoinsEarnStatus
+  reviewed_by: string | null
+  reviewed_at: string | null
+  review_note: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface AlpicoinsEarnRequestWithProfile extends AlpicoinsEarnRequest {
+  profile: Pick<Profile, 'id' | 'full_name' | 'email' | 'avatar_url' | 'position'> | null
+}
+
+export interface AlpicoinsTransaction {
+  id: string
+  profile_id: string
+  coins: number
+  description: string
+  source_type: AlpicoinsSourceType
+  source_id: string | null
+  created_by: string | null
+  created_at: string
+}
+
+export interface AlpicoinsRedemption {
+  id: string
+  profile_id: string
+  product_id: string
+  status: AlpicoinsRedemptionStatus
+  reviewed_by: string | null
+  reviewed_at: string | null
+  review_note: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface AlpicoinsRedemptionWithDetails extends AlpicoinsRedemption {
+  profile: Pick<Profile, 'id' | 'full_name' | 'email' | 'avatar_url'> | null
+  product: Pick<AlpicoinsProduct, 'id' | 'name' | 'image_url' | 'price_coins'> | null
+}
