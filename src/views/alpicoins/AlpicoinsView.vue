@@ -273,7 +273,7 @@ const pendingRedeemCount = computed(() => (allRedeemQ.data.value ?? []).filter(r
     <!-- ── TAB: LOJINHA ─────────────────────────────────────────────── -->
     <template v-if="tab === 'shop'">
       <!-- Solicitar coins -->
-      <div class="card">
+      <div class="card p-6">
         <button
           class="w-full flex items-center justify-between text-left"
           @click="earnFormOpen = !earnFormOpen"
@@ -387,7 +387,7 @@ const pendingRedeemCount = computed(() => (allRedeemQ.data.value ?? []).filter(r
       <div class="grid md:grid-cols-2 gap-6">
 
         <!-- Pedidos de coins -->
-        <div class="card space-y-4">
+        <div class="card p-6 space-y-4">
           <h2 class="font-semibold text-ink text-sm flex items-center gap-2">
             <Coins class="w-4 h-4 text-brand-600" />
             Pedidos de coins
@@ -421,7 +421,7 @@ const pendingRedeemCount = computed(() => (allRedeemQ.data.value ?? []).filter(r
         </div>
 
         <!-- Resgates -->
-        <div class="card space-y-4">
+        <div class="card p-6 space-y-4">
           <h2 class="font-semibold text-ink text-sm flex items-center gap-2">
             <ShoppingBag class="w-4 h-4 text-brand-600" />
             Meus resgates
@@ -448,7 +448,7 @@ const pendingRedeemCount = computed(() => (allRedeemQ.data.value ?? []).filter(r
         </div>
 
         <!-- Extrato -->
-        <div class="card space-y-4 md:col-span-2">
+        <div class="card p-6 space-y-4 md:col-span-2">
           <h2 class="font-semibold text-ink text-sm flex items-center gap-2">
             <Clock class="w-4 h-4 text-brand-600" />
             Extrato de movimentações
@@ -481,7 +481,7 @@ const pendingRedeemCount = computed(() => (allRedeemQ.data.value ?? []).filter(r
       <div class="space-y-6">
 
         <!-- Pedidos de ganho pendentes -->
-        <div class="card space-y-5">
+        <div class="card p-6 space-y-5">
           <div class="flex items-center justify-between">
             <h2 class="font-semibold text-ink flex items-center gap-2">
               <Coins class="w-4 h-4 text-brand-600" />
@@ -556,7 +556,7 @@ const pendingRedeemCount = computed(() => (allRedeemQ.data.value ?? []).filter(r
         </div>
 
         <!-- Resgates pendentes -->
-        <div class="card space-y-5">
+        <div class="card p-6 space-y-5">
           <div class="flex items-center justify-between">
             <h2 class="font-semibold text-ink flex items-center gap-2">
               <ShoppingBag class="w-4 h-4 text-brand-600" />
@@ -642,7 +642,7 @@ const pendingRedeemCount = computed(() => (allRedeemQ.data.value ?? []).filter(r
         </div>
 
         <!-- Catálogo de produtos -->
-        <div class="card space-y-5">
+        <div class="card p-6 space-y-5">
           <div class="flex items-center justify-between">
             <h2 class="font-semibold text-ink flex items-center gap-2">
               <ShoppingBag class="w-4 h-4 text-brand-600" />
