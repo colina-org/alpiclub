@@ -347,6 +347,15 @@ export const NOTIFICATION_ICON: Record<NotificationType, string> = {
 
 // ── Alpicoins ─────────────────────────────────────────────────────────
 
+export interface AlpicoinsRankingEntry {
+  id: string
+  full_name: string | null
+  email: string
+  avatar_url: string | null
+  position: string | null
+  balance: number
+}
+
 export type AlpicoinsEarnStatus = 'pending' | 'approved' | 'rejected'
 export type AlpicoinsRedemptionStatus = 'pending' | 'approved' | 'rejected' | 'delivered'
 export type AlpicoinsSourceType = 'earn' | 'redemption' | 'manual'

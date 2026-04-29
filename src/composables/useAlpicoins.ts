@@ -7,7 +7,23 @@ import type {
   AlpicoinsTransaction,
   AlpicoinsRedemption,
   AlpicoinsRedemptionWithDetails,
+  AlpicoinsRankingEntry,
 } from '@/types/database'
+
+// ── Ranking ───────────────────────────────────────────────────────────
+
+export function useAlpicoinsRanking() {
+  return useQuery({
+    queryKey: ['alpicoins-ranking'],
+    queryFn: async (): Promise<AlpicoinsRankingEntry[]> => {
+      const { data, error } = await supabase
+        .from('alpicoins_ranking')
+        .select('*')
+      if (error) throw error
+      return (data ?? []) as AlpicoinsRankingEntry[]
+    },
+  })
+}
 
 // ── Produtos ──────────────────────────────────────────────────────────
 

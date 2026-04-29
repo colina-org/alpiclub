@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { Coins, ShoppingBag, Clock, CheckCircle2, XCircle, Plus, ChevronDown, ChevronUp } from 'lucide-vue-next'
+import { Coins, ShoppingBag, Clock, CheckCircle2, XCircle, Plus, ChevronDown, ChevronUp, Trophy } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import {
@@ -18,8 +18,13 @@ import {
   useCreateAlpicoinsProduct,
   useUpdateAlpicoinsProduct,
   useDeleteAlpicoinsProduct,
+  useAlpicoinsRanking,
 } from '@/composables/useAlpicoins'
-import type { AlpicoinsProduct, AlpicoinsRedemptionStatus, AlpicoinsEarnStatus } from '@/types/database'
+import type {
+  AlpicoinsProduct,
+  AlpicoinsRedemptionStatus,
+  AlpicoinsEarnStatus,
+} from '@/types/database'
 
 const auth = useAuthStore()
 const ui = useUiStore()
@@ -44,9 +49,15 @@ const createProduct = useCreateAlpicoinsProduct()
 const updateProduct = useUpdateAlpicoinsProduct()
 const deleteProduct = useDeleteAlpicoinsProduct()
 
+const rankingQ = useAlpicoinsRanking()
+
 // ── Tabs ──────────────────────────────────────────────────────────────
-type Tab = 'shop' | 'history' | 'admin'
+type Tab = 'shop' | 'history' | 'ranking' | 'admin'
 const tab = ref<Tab>('shop')
+
+function setTab(key: string) {
+  tab.value = key as Tab
+}
 
 const balance = computed(() => balanceQ.data.value ?? 0)
 
@@ -136,10 +147,9 @@ async function handleReviewEarn(
 const reviewingRedeemId = ref<string | null>(null)
 const redeemReviewNote = ref<Record<string, string>>({})
 
-async function handleReviewRedeem(
-  req: { id: string; profile_id: string; product_id: string; product: { price_coins: number; name: string } | null },
-  status: 'approved' | 'rejected' | 'delivered',
-) {
+type RedemptionReviewable = { id: string; profile_id: string; product_id: string; product: { price_coins: number; name: string } | null }
+
+async function handleReviewRedeem(req: RedemptionReviewable, status: 'approved' | 'rejected' | 'delivered') {
   if (!uid.value || !req.product) return
   reviewingRedeemId.value = req.id
   try {
@@ -271,15 +281,15 @@ const pendingRedeemCount = computed(() => (allRedeemQ.data.value ?? []).filter(r
     </div>
 
     <!-- Tabs -->
-    <div class="flex gap-1 bg-surface rounded-xl p-1 w-fit">
+    <div class="flex flex-wrap gap-1 bg-surface rounded-xl p-1 w-fit">
       <button
         v-for="t in auth.isAdmin
-          ? [{ key: 'shop', label: 'Lojinha' }, { key: 'history', label: 'Meu histórico' }, { key: 'admin', label: 'Administrar' }]
-          : [{ key: 'shop', label: 'Lojinha' }, { key: 'history', label: 'Meu histórico' }]"
+          ? [{ key: 'shop', label: 'Lojinha' }, { key: 'history', label: 'Meu histórico' }, { key: 'ranking', label: 'Ranking' }, { key: 'admin', label: 'Administrar' }]
+          : [{ key: 'shop', label: 'Lojinha' }, { key: 'history', label: 'Meu histórico' }, { key: 'ranking', label: 'Ranking' }]"
         :key="t.key"
         class="relative px-4 py-1.5 rounded-lg text-sm font-medium transition-colors"
         :class="tab === t.key ? 'bg-panel text-ink shadow-sm' : 'text-muted hover:text-ink'"
-        @click="tab = t.key as Tab"
+        @click="setTab(t.key)"
       >
         {{ t.label }}
         <span
@@ -513,6 +523,73 @@ const pendingRedeemCount = computed(() => (allRedeemQ.data.value ?? []).filter(r
       </div>
     </template>
 
+    <!-- ── TAB: RANKING ────────────────────────────────────────────── -->
+    <template v-else-if="tab === 'ranking'">
+      <div class="card p-6 space-y-5">
+        <h2 class="font-semibold text-ink flex items-center gap-2">
+          <Trophy class="w-4 h-4 text-brand-600" />
+          Ranking de Alpicoins
+        </h2>
+
+        <div v-if="rankingQ.isLoading.value" class="text-center py-10 text-muted text-sm">
+          Carregando ranking…
+        </div>
+        <div
+          v-else-if="(rankingQ.data.value ?? []).filter(e => e.balance > 0).length === 0"
+          class="text-center py-10 text-muted"
+        >
+          <Trophy class="w-10 h-10 mx-auto mb-3 opacity-20" />
+          <p class="text-sm">Nenhum colaborador tem Alpicoins ainda.</p>
+        </div>
+
+        <ol v-else class="space-y-2">
+          <li
+            v-for="(entry, index) in (rankingQ.data.value ?? []).filter(e => e.balance > 0)"
+            :key="entry.id"
+            class="flex items-center gap-4 px-4 py-3 rounded-xl transition-colors"
+            :class="index === 0 ? 'bg-yellow-50 border border-yellow-200' : index === 1 ? 'bg-slate-50 border border-slate-200' : index === 2 ? 'bg-orange-50 border border-orange-200' : 'hover:bg-surface'"
+          >
+            <!-- Posição -->
+            <div class="w-8 text-center shrink-0">
+              <span v-if="index === 0" class="text-xl">🥇</span>
+              <span v-else-if="index === 1" class="text-xl">🥈</span>
+              <span v-else-if="index === 2" class="text-xl">🥉</span>
+              <span v-else class="text-sm font-semibold text-muted">{{ index + 1 }}º</span>
+            </div>
+
+            <!-- Avatar -->
+            <img
+              v-if="entry.avatar_url"
+              :src="entry.avatar_url"
+              class="w-10 h-10 rounded-full object-cover shrink-0"
+            />
+            <div
+              v-else
+              class="w-10 h-10 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-sm font-semibold shrink-0"
+            >
+              {{ (entry.full_name ?? entry.email)[0].toUpperCase() }}
+            </div>
+
+            <!-- Nome -->
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-semibold text-ink truncate">
+                {{ entry.full_name ?? entry.email }}
+              </p>
+              <p v-if="entry.position" class="text-xs text-muted truncate">{{ entry.position }}</p>
+            </div>
+
+            <!-- Saldo -->
+            <div class="flex items-center gap-1.5 shrink-0">
+              <Coins class="w-4 h-4 text-brand-600" :stroke-width="1.75" />
+              <span class="text-base font-bold text-brand-700">
+                {{ entry.balance.toLocaleString('pt-BR') }}
+              </span>
+            </div>
+          </li>
+        </ol>
+      </div>
+    </template>
+
     <!-- ── TAB: ADMIN ───────────────────────────────────────────────── -->
     <template v-else-if="tab === 'admin' && auth.isAdmin">
       <div class="space-y-6">
@@ -650,14 +727,14 @@ const pendingRedeemCount = computed(() => (allRedeemQ.data.value ?? []).filter(r
                   <button
                     class="btn-ghost btn-sm text-red-600 hover:bg-red-50"
                     :disabled="reviewingRedeemId === r.id"
-                    @click="handleReviewRedeem(r as any, 'rejected')"
+                    @click="handleReviewRedeem(r, 'rejected')"
                   >
                     <XCircle class="w-3.5 h-3.5" /> Recusar
                   </button>
                   <button
                     class="btn-primary btn-sm"
                     :disabled="reviewingRedeemId === r.id"
-                    @click="handleReviewRedeem(r as any, 'approved')"
+                    @click="handleReviewRedeem(r, 'approved')"
                   >
                     <CheckCircle2 class="w-3.5 h-3.5" /> Aprovar
                   </button>
@@ -668,7 +745,7 @@ const pendingRedeemCount = computed(() => (allRedeemQ.data.value ?? []).filter(r
                   <button
                     class="btn-primary btn-sm"
                     :disabled="reviewingRedeemId === r.id"
-                    @click="handleReviewRedeem(r as any, 'delivered')"
+                    @click="handleReviewRedeem(r, 'delivered')"
                   >
                     <CheckCircle2 class="w-3.5 h-3.5" /> Marcar como entregue
                   </button>
