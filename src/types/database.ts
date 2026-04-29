@@ -321,6 +321,8 @@ export type NotificationType =
   | 'pdi_goal_updated'
   | 'book_return_reminder'
   | 'book_available_for_you'
+  | 'alpicoins_earn_request'
+  | 'alpicoins_redemption_request'
 
 export interface Notification {
   id: string
@@ -334,11 +336,13 @@ export interface Notification {
 }
 
 export const NOTIFICATION_ICON: Record<NotificationType, string> = {
-  achievement_received:    '★',
-  pdi_comment:             '💬',
-  pdi_goal_updated:        '➤',
-  book_return_reminder:    '📚',
-  book_available_for_you:  '✨',
+  achievement_received:        '★',
+  pdi_comment:                 '💬',
+  pdi_goal_updated:            '➤',
+  book_return_reminder:        '📚',
+  book_available_for_you:      '✨',
+  alpicoins_earn_request:      '🪙',
+  alpicoins_redemption_request: '🎁',
 }
 
 // ── Alpicoins ─────────────────────────────────────────────────────────
