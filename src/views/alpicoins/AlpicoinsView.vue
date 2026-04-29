@@ -341,13 +341,17 @@ const pendingRedeemCount = computed(() => (allRedeemQ.data.value ?? []).filter(r
 
           <p class="text-xs text-muted">O time de Gente &amp; Gestão irá avaliar e aprovar seu pedido.</p>
           <div class="flex justify-end gap-2 pt-1">
-            <button class="btn-ghost btn-sm" @click="earnFormOpen = false">Cancelar</button>
+            <button
+              class="btn-ghost btn-sm"
+              :disabled="createEarn.isPending.value"
+              @click="earnFormOpen = false"
+            >Cancelar</button>
             <button
               class="btn-primary btn-sm"
               :disabled="!selectedAction || createEarn.isPending.value"
               @click="submitEarnRequest"
             >
-              Enviar pedido
+              {{ createEarn.isPending.value ? 'Enviando…' : 'Enviar pedido' }}
             </button>
           </div>
         </div>
@@ -405,7 +409,7 @@ const pendingRedeemCount = computed(() => (allRedeemQ.data.value ?? []).filter(r
             </div>
             <button
               class="btn-primary btn-sm w-full mt-1"
-              :disabled="!canAfford(product) || redeemingId === product.id"
+              :disabled="!canAfford(product) || redeemingId !== null"
               @click="handleRedeem(product)"
             >
               {{ redeemingId === product.id ? 'Enviando…' : 'Resgatar' }}
@@ -714,13 +718,17 @@ const pendingRedeemCount = computed(() => (allRedeemQ.data.value ?? []).filter(r
               </div>
             </div>
             <div class="flex gap-2 justify-end pt-1">
-              <button class="btn-ghost btn-sm" @click="productFormOpen = false">Cancelar</button>
+              <button
+                class="btn-ghost btn-sm"
+                :disabled="createProduct.isPending.value || updateProduct.isPending.value"
+                @click="productFormOpen = false"
+              >Cancelar</button>
               <button
                 class="btn-primary btn-sm"
-                :disabled="!productForm.name.trim() || !productForm.price_coins"
+                :disabled="!productForm.name.trim() || !productForm.price_coins || createProduct.isPending.value || updateProduct.isPending.value"
                 @click="submitProductForm"
               >
-                Salvar prêmio
+                {{ createProduct.isPending.value || updateProduct.isPending.value ? 'Salvando…' : 'Salvar prêmio' }}
               </button>
             </div>
           </div>
