@@ -535,16 +535,16 @@ const pendingRedeemCount = computed(() => (allRedeemQ.data.value ?? []).filter(r
           Carregando ranking…
         </div>
         <div
-          v-else-if="(rankingQ.data.value ?? []).filter(e => e.balance > 0).length === 0"
+          v-else-if="(rankingQ.data.value ?? []).length === 0"
           class="text-center py-10 text-muted"
         >
           <Trophy class="w-10 h-10 mx-auto mb-3 opacity-20" />
-          <p class="text-sm">Nenhum colaborador tem Alpicoins ainda.</p>
+          <p class="text-sm">Nenhum colaborador encontrado.</p>
         </div>
 
         <ol v-else class="space-y-2">
           <li
-            v-for="(entry, index) in (rankingQ.data.value ?? []).filter(e => e.balance > 0)"
+            v-for="(entry, index) in rankingQ.data.value"
             :key="entry.id"
             class="flex items-center gap-4 px-4 py-3 rounded-xl transition-colors"
             :class="index === 0 ? 'bg-yellow-50 border border-yellow-200' : index === 1 ? 'bg-slate-50 border border-slate-200' : index === 2 ? 'bg-orange-50 border border-orange-200' : 'hover:bg-surface'"
