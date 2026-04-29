@@ -54,18 +54,39 @@ function canAfford(product: AlpicoinsProduct) {
   return balance.value >= product.price_coins
 }
 
+// ── Tabela de ações com valor fixo de coins ───────────────────────────
+const EARN_ACTIONS = [
+  { label: 'Participar de Treinamento Interno (Exceto Checkpoint)', coins: 3 },
+  { label: 'Participar de Ação Social',                             coins: 5 },
+  { label: 'Participar de Evento Externo',                          coins: 8 },
+  { label: 'Escrever um Case de Sucesso',                           coins: 10 },
+  { label: 'Ler um Livro',                                          coins: 20 },
+  { label: 'Ministrar um Treinamento',                              coins: 25 },
+  { label: 'Concluir um Curso (1h – 5h)',                           coins: 5 },
+  { label: 'Concluir um Curso (5h – 10h)',                          coins: 10 },
+  { label: 'Concluir um Curso (10h – 15h)',                         coins: 15 },
+  { label: 'Concluir um Curso (15h+)',                              coins: 20 },
+]
+
 // ── Earn request form ─────────────────────────────────────────────────
 const earnFormOpen = ref(false)
-const earnForm = ref({ description: '', coins_requested: '' })
+const earnForm = ref({ action: '', notes: '' })
+
+const selectedAction = computed(() =>
+  EARN_ACTIONS.find(a => a.label === earnForm.value.action) ?? null
+)
 
 async function submitEarnRequest() {
-  if (!uid.value || !earnForm.value.description.trim() || !earnForm.value.coins_requested) return
+  if (!uid.value || !selectedAction.value) return
+  const description = earnForm.value.notes.trim()
+    ? `${selectedAction.value.label} — ${earnForm.value.notes.trim()}`
+    : selectedAction.value.label
   await createEarn.mutateAsync({
     profile_id: uid.value,
-    description: earnForm.value.description.trim(),
-    coins_requested: Number(earnForm.value.coins_requested),
+    description,
+    coins_requested: selectedAction.value.coins,
   })
-  earnForm.value = { description: '', coins_requested: '' }
+  earnForm.value = { action: '', notes: '' }
   earnFormOpen.value = false
   ui.pushToast('Pedido enviado! Aguarde a aprovação.', 'success')
 }
@@ -289,29 +310,41 @@ const pendingRedeemCount = computed(() => (allRedeemQ.data.value ?? []).filter(r
         <div v-if="earnFormOpen" class="mt-5 pt-5 border-t border-line space-y-5">
           <div class="space-y-1.5">
             <label class="label">O que você fez?</label>
-            <textarea
-              v-model="earnForm.description"
-              class="input resize-none"
-              rows="3"
-              placeholder="Ex: Concluí o curso de Google Ads na Udemy (20h)"
-            />
+            <select v-model="earnForm.action" class="input">
+              <option value="" disabled>Selecione uma ação…</option>
+              <option v-for="a in EARN_ACTIONS" :key="a.label" :value="a.label">
+                {{ a.label }} (+{{ a.coins }} coins)
+              </option>
+            </select>
           </div>
+
+          <!-- Preview de coins -->
+          <div
+            v-if="selectedAction"
+            class="flex items-center gap-2 bg-brand-50 border border-brand-200 rounded-xl px-4 py-2.5"
+          >
+            <Coins class="w-4 h-4 text-brand-600 shrink-0" />
+            <span class="text-sm text-brand-700">
+              Você receberá <strong>+{{ selectedAction.coins }} Alpicoins</strong> após aprovação.
+            </span>
+          </div>
+
           <div class="space-y-1.5">
-            <label class="label">Coins solicitados</label>
-            <input
-              v-model="earnForm.coins_requested"
-              type="number"
-              min="1"
-              class="input"
-              placeholder="Ex: 50"
+            <label class="label">Detalhes adicionais <span class="text-muted font-normal">(opcional)</span></label>
+            <textarea
+              v-model="earnForm.notes"
+              class="input resize-none"
+              rows="2"
+              placeholder="Ex: Nome do curso, link, data do evento…"
             />
           </div>
+
           <p class="text-xs text-muted">O time de Gente &amp; Gestão irá avaliar e aprovar seu pedido.</p>
           <div class="flex justify-end gap-2 pt-1">
             <button class="btn-ghost btn-sm" @click="earnFormOpen = false">Cancelar</button>
             <button
               class="btn-primary btn-sm"
-              :disabled="!earnForm.description.trim() || !earnForm.coins_requested || createEarn.isPending.value"
+              :disabled="!selectedAction || createEarn.isPending.value"
               @click="submitEarnRequest"
             >
               Enviar pedido
