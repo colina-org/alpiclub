@@ -68,31 +68,46 @@ const stats = computed(() => {
   ]
 })
 
+// Retorna a próxima ocorrência de MM-DD a partir de hoje, e quantos dias faltam.
+function nextAnnualOccurrence(month: number, day: number) {
+  const todayMidnight = new Date()
+  todayMidnight.setHours(0, 0, 0, 0)
+  let next = new Date(todayMidnight.getFullYear(), month - 1, day)
+  if (next < todayMidnight) next = new Date(todayMidnight.getFullYear() + 1, month - 1, day)
+  const diffDays = Math.round((next.getTime() - todayMidnight.getTime()) / 86400000)
+  return { next, diffDays }
+}
+
 const birthdaysThisWeek = computed(() => {
   const list = profilesQuery.data.value ?? []
-  const today = new Date()
-  const sevenDays = 7
-
   return list
     .filter((p) => p.birthday)
     .map((p) => {
       const [, m, d] = (p.birthday as string).split('-').map(Number)
-      let next = new Date(today.getFullYear(), m - 1, d)
-      if (
-        next < new Date(today.getFullYear(), today.getMonth(), today.getDate())
-      ) {
-        next = new Date(today.getFullYear() + 1, m - 1, d)
-      }
-      const diffDays = Math.round(
-        (next.getTime() -
-          new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()) /
-          (1000 * 60 * 60 * 24),
-      )
+      const { diffDays } = nextAnnualOccurrence(m, d)
       return { profile: p, diffDays, day: d, month: m }
     })
-    .filter((x) => x.diffDays >= 0 && x.diffDays <= sevenDays)
+    .filter((x) => x.diffDays >= 0 && x.diffDays <= 7)
     .sort((a, b) => a.diffDays - b.diffDays)
 })
+
+const companyAnniversariesThisWeek = computed(() => {
+  const list = profilesQuery.data.value ?? []
+  return list
+    .filter((p) => p.joined_at)
+    .map((p) => {
+      const [joinedYear, m, d] = (p.joined_at as string).split('-').map(Number)
+      const { next, diffDays } = nextAnnualOccurrence(m, d)
+      const years = next.getFullYear() - joinedYear
+      return { profile: p, diffDays, day: d, month: m, years }
+    })
+    .filter((x) => x.diffDays >= 0 && x.diffDays <= 7 && x.years >= 1)
+    .sort((a, b) => a.diffDays - b.diffDays)
+})
+
+const hasAnyAnniversary = computed(() =>
+  birthdaysThisWeek.value.length > 0 || companyAnniversariesThisWeek.value.length > 0
+)
 </script>
 
 <template>
@@ -205,46 +220,88 @@ const birthdaysThisWeek = computed(() => {
           </div>
 
           <div
-            v-else-if="birthdaysThisWeek.length === 0"
+            v-else-if="!hasAnyAnniversary"
             class="mt-6 text-sm text-muted text-center py-12 border border-dashed border-line rounded-xl"
           >
             Nenhum aniversário próximo.
           </div>
 
-          <ul v-else class="mt-5 space-y-3">
-            <li
-              v-for="b in birthdaysThisWeek"
-              :key="b.profile.id"
-              class="flex items-center gap-3"
-            >
-              <RouterLink :to="{ name: 'profile', params: { id: b.profile.id } }" class="flex-shrink-0">
-                <img
-                  v-if="b.profile.avatar_url"
-                  :src="b.profile.avatar_url"
-                  :alt="b.profile.full_name ?? b.profile.email"
-                  class="h-10 w-10 rounded-xl object-cover"
-                />
-                <div
-                  v-else
-                  class="h-10 w-10 rounded-xl bg-brand-100 text-brand-700 flex items-center justify-center text-sm font-bold"
+          <template v-else>
+            <!-- Aniversários de nascimento -->
+            <template v-if="birthdaysThisWeek.length > 0">
+              <p class="mt-5 mb-2 text-xs font-semibold text-muted uppercase tracking-wide">🎂 Nascimento</p>
+              <ul class="space-y-3">
+                <li
+                  v-for="b in birthdaysThisWeek"
+                  :key="b.profile.id"
+                  class="flex items-center gap-3"
                 >
-                  {{ initials(b.profile.full_name, b.profile.email) }}
-                </div>
-              </RouterLink>
-              <div class="flex-1 min-w-0">
-                <RouterLink
-                  :to="{ name: 'profile', params: { id: b.profile.id } }"
-                  class="text-sm font-medium hover:text-brand-700 truncate block"
+                  <RouterLink :to="{ name: 'profile', params: { id: b.profile.id } }" class="flex-shrink-0">
+                    <img
+                      v-if="b.profile.avatar_url"
+                      :src="b.profile.avatar_url"
+                      :alt="b.profile.full_name ?? b.profile.email"
+                      class="h-10 w-10 rounded-xl object-cover"
+                    />
+                    <div v-else class="h-10 w-10 rounded-xl bg-brand-100 text-brand-700 flex items-center justify-center text-sm font-bold">
+                      {{ initials(b.profile.full_name, b.profile.email) }}
+                    </div>
+                  </RouterLink>
+                  <div class="flex-1 min-w-0">
+                    <RouterLink
+                      :to="{ name: 'profile', params: { id: b.profile.id } }"
+                      class="text-sm font-medium hover:text-brand-700 truncate block"
+                    >
+                      {{ b.profile.full_name || b.profile.email.split('@')[0] }}
+                    </RouterLink>
+                    <p class="text-xs text-muted">
+                      {{ b.diffDays === 0 ? 'Hoje 🎉' : b.diffDays === 1 ? 'Amanhã' : `Em ${b.diffDays} dias` }}
+                      · {{ String(b.day).padStart(2, '0') }}/{{ String(b.month).padStart(2, '0') }}
+                    </p>
+                  </div>
+                </li>
+              </ul>
+            </template>
+
+            <!-- Aniversários de empresa -->
+            <template v-if="companyAnniversariesThisWeek.length > 0">
+              <p class="mt-5 mb-2 text-xs font-semibold text-muted uppercase tracking-wide">🏢 Tempo de empresa</p>
+              <ul class="space-y-3">
+                <li
+                  v-for="c in companyAnniversariesThisWeek"
+                  :key="c.profile.id"
+                  class="flex items-center gap-3"
                 >
-                  {{ b.profile.full_name || b.profile.email.split('@')[0] }}
-                </RouterLink>
-                <p class="text-xs text-muted">
-                  {{ b.diffDays === 0 ? 'Hoje 🎉' : b.diffDays === 1 ? 'Amanhã' : `Em ${b.diffDays} dias` }}
-                  · {{ String(b.day).padStart(2, '0') }}/{{ String(b.month).padStart(2, '0') }}
-                </p>
-              </div>
-            </li>
-          </ul>
+                  <RouterLink :to="{ name: 'profile', params: { id: c.profile.id } }" class="flex-shrink-0">
+                    <img
+                      v-if="c.profile.avatar_url"
+                      :src="c.profile.avatar_url"
+                      :alt="c.profile.full_name ?? c.profile.email"
+                      class="h-10 w-10 rounded-xl object-cover"
+                    />
+                    <div v-else class="h-10 w-10 rounded-xl bg-brand-100 text-brand-700 flex items-center justify-center text-sm font-bold">
+                      {{ initials(c.profile.full_name, c.profile.email) }}
+                    </div>
+                  </RouterLink>
+                  <div class="flex-1 min-w-0">
+                    <RouterLink
+                      :to="{ name: 'profile', params: { id: c.profile.id } }"
+                      class="text-sm font-medium hover:text-brand-700 truncate block"
+                    >
+                      {{ c.profile.full_name || c.profile.email.split('@')[0] }}
+                    </RouterLink>
+                    <p class="text-xs text-muted">
+                      {{ c.diffDays === 0 ? 'Hoje 🎉' : c.diffDays === 1 ? 'Amanhã' : `Em ${c.diffDays} dias` }}
+                      ·
+                      <span class="font-medium text-brand-600">
+                        {{ c.years }} {{ c.years === 1 ? 'ano' : 'anos' }} de empresa
+                      </span>
+                    </p>
+                  </div>
+                </li>
+              </ul>
+            </template>
+          </template>
         </div>
 
         <DailyQuote />
