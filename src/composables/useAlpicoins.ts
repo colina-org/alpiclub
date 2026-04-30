@@ -171,10 +171,26 @@ export function useAllEarnRequests() {
   })
 }
 
+export async function uploadEarnAttachment(profileId: string, file: File): Promise<string> {
+  const ext = file.name.split('.').pop()
+  const path = `${profileId}/${Date.now()}.${ext}`
+  const { error } = await supabase.storage
+    .from('alpicoins-attachments')
+    .upload(path, file, { upsert: false })
+  if (error) throw error
+  const { data } = supabase.storage.from('alpicoins-attachments').getPublicUrl(path)
+  return data.publicUrl
+}
+
 export function useCreateEarnRequest() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (input: { profile_id: string; description: string; coins_requested: number }) => {
+    mutationFn: async (input: {
+      profile_id: string
+      description: string
+      coins_requested: number
+      attachment_url?: string | null
+    }) => {
       const { data, error } = await supabase
         .from('alpicoins_earn_requests')
         .insert(input)

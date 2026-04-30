@@ -27,7 +27,7 @@ export const useAuthStore = defineStore('auth', () => {
         'carregar perfil',
       )
       if (error) return false
-      profile.value = data as Profile
+      profile.value = data as AuthProfile
       return true
     } catch {
       return false

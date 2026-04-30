@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { Coins, ShoppingBag, Clock, CheckCircle2, XCircle, Plus, ChevronDown, ChevronUp, Trophy } from 'lucide-vue-next'
+import FileUploadInput from '@/components/FileUploadInput.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import {
@@ -19,6 +20,7 @@ import {
   useUpdateAlpicoinsProduct,
   useDeleteAlpicoinsProduct,
   useAlpicoinsRanking,
+  uploadEarnAttachment,
 } from '@/composables/useAlpicoins'
 import type {
   AlpicoinsProduct,
@@ -52,12 +54,42 @@ const deleteProduct = useDeleteAlpicoinsProduct()
 const rankingQ = useAlpicoinsRanking()
 
 // ── Tabs ──────────────────────────────────────────────────────────────
-type Tab = 'shop' | 'history' | 'ranking' | 'admin'
+type Tab = 'shop' | 'history' | 'ranking' | 'admin' | 'catalog'
 const tab = ref<Tab>('shop')
 
 function setTab(key: string) {
   tab.value = key as Tab
 }
+
+// ── Paginação ─────────────────────────────────────────────────────────
+const PAGE_SIZE = 10
+
+const earnAdminPage = ref(0)
+const redeemAdminPage = ref(0)
+const earnHistoryPage = ref(0)
+const redeemHistoryPage = ref(0)
+const txPage = ref(0)
+
+const paginatedAllEarn = computed(() => {
+  const list = allEarnQ.data.value ?? []
+  return list.slice(earnAdminPage.value * PAGE_SIZE, (earnAdminPage.value + 1) * PAGE_SIZE)
+})
+const paginatedAllRedeem = computed(() => {
+  const list = allRedeemQ.data.value ?? []
+  return list.slice(redeemAdminPage.value * PAGE_SIZE, (redeemAdminPage.value + 1) * PAGE_SIZE)
+})
+const paginatedEarnRequests = computed(() => {
+  const list = earnRequestsQ.data.value ?? []
+  return list.slice(earnHistoryPage.value * PAGE_SIZE, (earnHistoryPage.value + 1) * PAGE_SIZE)
+})
+const paginatedRedemptions = computed(() => {
+  const list = redemptionsQ.data.value ?? []
+  return list.slice(redeemHistoryPage.value * PAGE_SIZE, (redeemHistoryPage.value + 1) * PAGE_SIZE)
+})
+const paginatedTransactions = computed(() => {
+  const list = transactionsQ.data.value ?? []
+  return list.slice(txPage.value * PAGE_SIZE, (txPage.value + 1) * PAGE_SIZE)
+})
 
 const balance = computed(() => balanceQ.data.value ?? 0)
 
@@ -83,21 +115,62 @@ const EARN_ACTIONS = [
 const earnFormOpen = ref(false)
 const earnForm = ref({ action: '', notes: '' })
 
+type AttachmentType = '' | 'url' | 'upload'
+const attachmentType = ref<AttachmentType>('')
+const attachmentUrl = ref('')
+const attachmentUploadedUrl = ref<string | null>(null)
+const uploadingAttachment = ref(false)
+
+function setAttachmentType(key: string) {
+  attachmentType.value = key as AttachmentType
+  attachmentUrl.value = ''
+  attachmentUploadedUrl.value = null
+}
+
+async function handleAttachmentSelect(file: File) {
+  if (!uid.value) return
+  uploadingAttachment.value = true
+  try {
+    attachmentUploadedUrl.value = await uploadEarnAttachment(uid.value, file)
+  } catch {
+    ui.pushToast('Erro ao enviar arquivo.', 'error')
+  } finally {
+    uploadingAttachment.value = false
+  }
+}
+
+function resetEarnForm() {
+  earnForm.value = { action: '', notes: '' }
+  attachmentType.value = ''
+  attachmentUrl.value = ''
+  attachmentUploadedUrl.value = null
+}
+
 const selectedAction = computed(() =>
   EARN_ACTIONS.find(a => a.label === earnForm.value.action) ?? null
 )
 
 async function submitEarnRequest() {
   if (!uid.value || !selectedAction.value) return
+
+  let finalAttachmentUrl: string | null = null
+  if (attachmentType.value === 'url' && attachmentUrl.value.trim()) {
+    finalAttachmentUrl = attachmentUrl.value.trim()
+  } else if (attachmentType.value === 'upload') {
+    finalAttachmentUrl = attachmentUploadedUrl.value
+  }
+
   const description = earnForm.value.notes.trim()
     ? `${selectedAction.value.label} — ${earnForm.value.notes.trim()}`
     : selectedAction.value.label
+
   await createEarn.mutateAsync({
     profile_id: uid.value,
     description,
     coins_requested: selectedAction.value.coins,
+    attachment_url: finalAttachmentUrl,
   })
-  earnForm.value = { action: '', notes: '' }
+  resetEarnForm()
   earnFormOpen.value = false
   ui.pushToast('Pedido enviado! Aguarde a aprovação.', 'success')
 }
@@ -256,7 +329,7 @@ const pendingRedeemCount = computed(() => (allRedeemQ.data.value ?? []).filter(r
 </script>
 
 <template>
-  <div class="max-w-5xl mx-auto space-y-6">
+  <div class="max-w-5xl mx-auto space-y-6 overflow-x-hidden">
 
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -284,7 +357,7 @@ const pendingRedeemCount = computed(() => (allRedeemQ.data.value ?? []).filter(r
     <div class="flex flex-wrap gap-1 bg-surface rounded-xl p-1 w-fit">
       <button
         v-for="t in auth.isAdmin
-          ? [{ key: 'shop', label: 'Lojinha' }, { key: 'history', label: 'Meu histórico' }, { key: 'ranking', label: 'Ranking' }, { key: 'admin', label: 'Administrar' }]
+          ? [{ key: 'shop', label: 'Lojinha' }, { key: 'history', label: 'Meu histórico' }, { key: 'ranking', label: 'Ranking' }, { key: 'admin', label: 'Administrar' }, { key: 'catalog', label: 'Catálogo de prêmios' }]
           : [{ key: 'shop', label: 'Lojinha' }, { key: 'history', label: 'Meu histórico' }, { key: 'ranking', label: 'Ranking' }]"
         :key="t.key"
         class="relative px-4 py-1.5 rounded-lg text-sm font-medium transition-colors"
@@ -349,19 +422,50 @@ const pendingRedeemCount = computed(() => (allRedeemQ.data.value ?? []).filter(r
             />
           </div>
 
+          <!-- Anexo -->
+          <div class="space-y-3">
+            <label class="label">Comprovante <span class="text-muted font-normal">(opcional)</span></label>
+            <div class="flex gap-2">
+              <button
+                v-for="opt in [{ key: '', label: 'Sem anexo' }, { key: 'url', label: 'Link (URL)' }, { key: 'upload', label: 'Upload de arquivo' }]"
+                :key="opt.key"
+                type="button"
+                class="px-3 py-1.5 rounded-lg text-sm border transition-colors"
+                :class="attachmentType === opt.key
+                  ? 'border-brand-400 bg-brand-50 text-brand-700 font-medium'
+                  : 'border-line text-muted hover:text-ink hover:border-ink/20'"
+                @click="setAttachmentType(opt.key)"
+              >{{ opt.label }}</button>
+            </div>
+            <input
+              v-if="attachmentType === 'url'"
+              v-model="attachmentUrl"
+              class="input"
+              type="url"
+              placeholder="https://…"
+            />
+            <FileUploadInput
+              v-else-if="attachmentType === 'upload'"
+              :current-url="attachmentUploadedUrl"
+              :busy="uploadingAttachment"
+              @select="handleAttachmentSelect"
+              @remove="attachmentUploadedUrl = null"
+            />
+          </div>
+
           <p class="text-xs text-muted">O time de Gente &amp; Gestão irá avaliar e aprovar seu pedido.</p>
           <div class="flex justify-end gap-2 pt-1">
             <button
               class="btn-ghost btn-sm"
-              :disabled="createEarn.isPending.value"
-              @click="earnFormOpen = false"
+              :disabled="createEarn.isPending.value || uploadingAttachment"
+              @click="earnFormOpen = false; resetEarnForm()"
             >Cancelar</button>
             <button
               class="btn-primary btn-sm"
-              :disabled="!selectedAction || createEarn.isPending.value"
+              :disabled="!selectedAction || createEarn.isPending.value || uploadingAttachment"
               @click="submitEarnRequest"
             >
-              {{ createEarn.isPending.value ? 'Enviando…' : 'Enviar pedido' }}
+              {{ uploadingAttachment ? 'Enviando anexo…' : createEarn.isPending.value ? 'Enviando…' : 'Enviar pedido' }}
             </button>
           </div>
         </div>
@@ -448,16 +552,16 @@ const pendingRedeemCount = computed(() => (allRedeemQ.data.value ?? []).filter(r
           </div>
           <ul v-else class="space-y-2">
             <li
-              v-for="r in earnRequestsQ.data.value"
+              v-for="r in paginatedEarnRequests"
               :key="r.id"
               class="flex items-start justify-between gap-2 text-sm py-2 border-b border-line last:border-0"
             >
               <div class="flex-1 min-w-0">
-                <p class="text-ink truncate">{{ r.description }}</p>
-                <p class="text-xs text-muted">{{ formatDate(r.created_at) }}</p>
+                <p class="text-ink break-words">{{ r.description }}</p>
+                <p class="text-xs text-muted mt-0.5">{{ formatDate(r.created_at) }}</p>
                 <p v-if="r.review_note" class="text-xs text-muted italic mt-0.5">"{{ r.review_note }}"</p>
               </div>
-              <div class="flex flex-col items-end gap-1 shrink-0">
+              <div class="flex flex-col items-end gap-1 shrink-0 ml-2">
                 <span class="font-semibold text-brand-700">+{{ r.coins_requested }}</span>
                 <span class="text-xs px-2 py-0.5 rounded-full" :class="EARN_STATUS_COLOR[r.status]">
                   {{ EARN_STATUS_LABEL[r.status] }}
@@ -465,6 +569,11 @@ const pendingRedeemCount = computed(() => (allRedeemQ.data.value ?? []).filter(r
               </div>
             </li>
           </ul>
+          <div v-if="(earnRequestsQ.data.value ?? []).length > PAGE_SIZE" class="flex items-center justify-between pt-2 text-xs text-muted">
+            <button class="btn-ghost btn-sm" :disabled="earnHistoryPage === 0" @click="earnHistoryPage--">← Anterior</button>
+            <span>{{ earnHistoryPage + 1 }} / {{ Math.ceil((earnRequestsQ.data.value ?? []).length / PAGE_SIZE) }}</span>
+            <button class="btn-ghost btn-sm" :disabled="(earnHistoryPage + 1) * PAGE_SIZE >= (earnRequestsQ.data.value ?? []).length" @click="earnHistoryPage++">Próxima →</button>
+          </div>
         </div>
 
         <!-- Resgates -->
@@ -479,7 +588,7 @@ const pendingRedeemCount = computed(() => (allRedeemQ.data.value ?? []).filter(r
           </div>
           <ul v-else class="space-y-2">
             <li
-              v-for="r in redemptionsQ.data.value"
+              v-for="r in paginatedRedemptions"
               :key="r.id"
               class="flex items-start justify-between gap-2 text-sm py-2 border-b border-line last:border-0"
             >
@@ -492,6 +601,11 @@ const pendingRedeemCount = computed(() => (allRedeemQ.data.value ?? []).filter(r
               </span>
             </li>
           </ul>
+          <div v-if="(redemptionsQ.data.value ?? []).length > PAGE_SIZE" class="flex items-center justify-between pt-2 text-xs text-muted">
+            <button class="btn-ghost btn-sm" :disabled="redeemHistoryPage === 0" @click="redeemHistoryPage--">← Anterior</button>
+            <span>{{ redeemHistoryPage + 1 }} / {{ Math.ceil((redemptionsQ.data.value ?? []).length / PAGE_SIZE) }}</span>
+            <button class="btn-ghost btn-sm" :disabled="(redeemHistoryPage + 1) * PAGE_SIZE >= (redemptionsQ.data.value ?? []).length" @click="redeemHistoryPage++">Próxima →</button>
+          </div>
         </div>
 
         <!-- Extrato -->
@@ -506,19 +620,24 @@ const pendingRedeemCount = computed(() => (allRedeemQ.data.value ?? []).filter(r
           </div>
           <ul v-else class="space-y-2">
             <li
-              v-for="t in transactionsQ.data.value"
+              v-for="t in paginatedTransactions"
               :key="t.id"
               class="flex items-center justify-between gap-2 text-sm py-2 border-b border-line last:border-0"
             >
               <div class="flex-1 min-w-0">
-                <p class="text-ink">{{ t.description }}</p>
+                <p class="text-ink break-words">{{ t.description }}</p>
                 <p class="text-xs text-muted">{{ formatDate(t.created_at) }}</p>
               </div>
-              <span class="font-bold" :class="t.coins > 0 ? 'text-green-600' : 'text-red-500'">
+              <span class="font-bold shrink-0 ml-2" :class="t.coins > 0 ? 'text-green-600' : 'text-red-500'">
                 {{ t.coins > 0 ? '+' : '' }}{{ t.coins.toLocaleString('pt-BR') }}
               </span>
             </li>
           </ul>
+          <div v-if="(transactionsQ.data.value ?? []).length > PAGE_SIZE" class="flex items-center justify-between pt-2 text-xs text-muted">
+            <button class="btn-ghost btn-sm" :disabled="txPage === 0" @click="txPage--">← Anterior</button>
+            <span>{{ txPage + 1 }} / {{ Math.ceil((transactionsQ.data.value ?? []).length / PAGE_SIZE) }}</span>
+            <button class="btn-ghost btn-sm" :disabled="(txPage + 1) * PAGE_SIZE >= (transactionsQ.data.value ?? []).length" @click="txPage++">Próxima →</button>
+          </div>
         </div>
       </div>
     </template>
@@ -612,7 +731,7 @@ const pendingRedeemCount = computed(() => (allRedeemQ.data.value ?? []).filter(r
           </div>
           <ul v-else class="space-y-4">
             <li
-              v-for="r in allEarnQ.data.value"
+              v-for="r in paginatedAllEarn"
               :key="r.id"
               class="border border-line rounded-2xl p-5 space-y-4"
               :class="r.status === 'pending' ? 'bg-yellow-50/40 border-yellow-200' : ''"
@@ -629,6 +748,15 @@ const pendingRedeemCount = computed(() => (allRedeemQ.data.value ?? []).filter(r
                 <div class="flex-1 min-w-0">
                   <p class="text-sm font-semibold text-ink">{{ r.profile?.full_name ?? r.profile?.email }}</p>
                   <p class="text-sm text-muted mt-1 leading-relaxed">{{ r.description }}</p>
+                  <a
+                    v-if="r.attachment_url"
+                    :href="r.attachment_url"
+                    target="_blank"
+                    rel="noopener"
+                    class="inline-flex items-center gap-1 text-xs text-brand-600 hover:underline mt-1"
+                  >
+                    📎 Ver comprovante
+                  </a>
                   <p class="text-xs text-muted mt-1.5">{{ formatDate(r.created_at) }}</p>
                 </div>
                 <div class="flex flex-col items-end gap-1.5 shrink-0">
@@ -667,6 +795,11 @@ const pendingRedeemCount = computed(() => (allRedeemQ.data.value ?? []).filter(r
               </template>
             </li>
           </ul>
+          <div v-if="(allEarnQ.data.value ?? []).length > PAGE_SIZE" class="flex items-center justify-between pt-2 text-xs text-muted">
+            <button class="btn-ghost btn-sm" :disabled="earnAdminPage === 0" @click="earnAdminPage--">← Anterior</button>
+            <span>{{ earnAdminPage + 1 }} / {{ Math.ceil((allEarnQ.data.value ?? []).length / PAGE_SIZE) }}</span>
+            <button class="btn-ghost btn-sm" :disabled="(earnAdminPage + 1) * PAGE_SIZE >= (allEarnQ.data.value ?? []).length" @click="earnAdminPage++">Próxima →</button>
+          </div>
         </div>
 
         <!-- Resgates pendentes -->
@@ -687,7 +820,7 @@ const pendingRedeemCount = computed(() => (allRedeemQ.data.value ?? []).filter(r
           </div>
           <ul v-else class="space-y-4">
             <li
-              v-for="r in allRedeemQ.data.value"
+              v-for="r in paginatedAllRedeem"
               :key="r.id"
               class="border border-line rounded-2xl p-5 space-y-4"
               :class="r.status === 'pending' ? 'bg-yellow-50/40 border-yellow-200' : r.status === 'approved' ? 'bg-blue-50/30 border-blue-200' : ''"
@@ -753,8 +886,19 @@ const pendingRedeemCount = computed(() => (allRedeemQ.data.value ?? []).filter(r
               </template>
             </li>
           </ul>
+          <div v-if="(allRedeemQ.data.value ?? []).length > PAGE_SIZE" class="flex items-center justify-between pt-2 text-xs text-muted">
+            <button class="btn-ghost btn-sm" :disabled="redeemAdminPage === 0" @click="redeemAdminPage--">← Anterior</button>
+            <span>{{ redeemAdminPage + 1 }} / {{ Math.ceil((allRedeemQ.data.value ?? []).length / PAGE_SIZE) }}</span>
+            <button class="btn-ghost btn-sm" :disabled="(redeemAdminPage + 1) * PAGE_SIZE >= (allRedeemQ.data.value ?? []).length" @click="redeemAdminPage++">Próxima →</button>
+          </div>
         </div>
 
+      </div>
+    </template>
+
+    <!-- ── TAB: CATÁLOGO ───────────────────────────────────────────────── -->
+    <template v-else-if="tab === 'catalog' && auth.isAdmin">
+      <div class="space-y-6">
         <!-- Catálogo de produtos -->
         <div class="card p-6 space-y-5">
           <div class="flex items-center justify-between">
@@ -850,3 +994,4 @@ const pendingRedeemCount = computed(() => (allRedeemQ.data.value ?? []).filter(r
 
   </div>
 </template>
+

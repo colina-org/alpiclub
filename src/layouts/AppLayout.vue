@@ -9,6 +9,7 @@ import {
   Target,
   BookOpen,
   Coins,
+  Crown,
   Settings,
   UserCircle2,
   LogOut,
@@ -36,15 +37,16 @@ function onMenuClick() {
 }
 
 const navItems = [
-  { name: 'Dashboard', to: { name: 'dashboard' }, icon: LayoutDashboard },
-  { name: 'Agências', to: { name: 'agencies' }, icon: Building2 },
-  { name: 'Pessoas', to: { name: 'people' }, icon: Users },
-  { name: 'Estrutura', to: { name: 'structure' }, icon: Network },
-  { name: 'Conquistas', to: { name: 'achievements' }, icon: Trophy },
-  { name: 'PDI', to: { name: 'pdi' }, icon: Target },
-  { name: 'Biblioteca', to: { name: 'library' }, icon: BookOpen },
-  { name: 'Alpicoins', to: { name: 'alpicoins' }, icon: Coins },
-  { name: 'Administração', to: { name: 'admin' }, icon: Settings },
+  { name: 'Dashboard',              to: { name: 'dashboard' },    icon: LayoutDashboard },
+  { name: 'Agências',               to: { name: 'agencies' },     icon: Building2 },
+  { name: 'Alpinistas',             to: { name: 'people' },       icon: Users },
+  { name: 'Estrutura',              to: { name: 'structure' },    icon: Network },
+  { name: 'Conquistas',             to: { name: 'achievements' }, icon: Trophy },
+  { name: 'PDI',                    to: { name: 'pdi' },          icon: Target },
+  { name: 'Biblioteca',             to: { name: 'library' },      icon: BookOpen },
+  { name: 'Alpicoins',              to: { name: 'alpicoins' },    icon: Coins },
+  { name: 'Bingo do Reconhecimento', to: { name: 'bingo' },       icon: Crown },
+  { name: 'Administração',          to: { name: 'admin' },        icon: Settings },
 ]
 
 async function handleSignOut() {

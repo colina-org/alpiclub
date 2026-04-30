@@ -323,6 +323,7 @@ export type NotificationType =
   | 'book_available_for_you'
   | 'alpicoins_earn_request'
   | 'alpicoins_redemption_request'
+  | 'bingo_friday_reminder'
 
 export interface Notification {
   id: string
@@ -336,13 +337,47 @@ export interface Notification {
 }
 
 export const NOTIFICATION_ICON: Record<NotificationType, string> = {
-  achievement_received:        '★',
-  pdi_comment:                 '💬',
-  pdi_goal_updated:            '➤',
-  book_return_reminder:        '📚',
-  book_available_for_you:      '✨',
-  alpicoins_earn_request:      '🪙',
+  achievement_received:         '★',
+  pdi_comment:                  '💬',
+  pdi_goal_updated:             '➤',
+  book_return_reminder:         '📚',
+  book_available_for_you:       '✨',
+  alpicoins_earn_request:       '🪙',
   alpicoins_redemption_request: '🎁',
+  bingo_friday_reminder:        '👑',
+}
+
+// ── Bingo do Reconhecimento ───────────────────────────────────────────
+
+export type RecognitionType = 'professional' | 'personal'
+
+export interface RecognitionVote {
+  id: string
+  voter_id: string
+  recipient_id: string
+  type: RecognitionType
+  icon_count: number
+  comment: string
+  week_date: string
+  created_at: string
+}
+
+type ProfileMiniRecognition = Pick<Profile, 'id' | 'full_name' | 'email' | 'avatar_url' | 'position'>
+
+export interface RecognitionVoteWithPeople extends RecognitionVote {
+  voter: ProfileMiniRecognition | null
+  recipient: ProfileMiniRecognition | null
+}
+
+export interface RecognitionRankingEntry {
+  id: string
+  full_name: string | null
+  email: string
+  avatar_url: string | null
+  position: string | null
+  professional_count: number
+  personal_count: number
+  total_count: number
 }
 
 // ── Alpicoins ─────────────────────────────────────────────────────────
@@ -378,6 +413,7 @@ export interface AlpicoinsEarnRequest {
   profile_id: string
   description: string
   coins_requested: number
+  attachment_url: string | null
   status: AlpicoinsEarnStatus
   reviewed_by: string | null
   reviewed_at: string | null

@@ -77,6 +77,11 @@ const router = createRouter({
           component: () => import('@/views/alpicoins/AlpicoinsView.vue'),
         },
         {
+          path: 'bingo',
+          name: 'bingo',
+          component: () => import('@/views/bingo/BingoView.vue'),
+        },
+        {
           path: 'admin',
           name: 'admin',
           component: () => import('@/views/admin/AdminView.vue'),
